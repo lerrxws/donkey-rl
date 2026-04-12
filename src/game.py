@@ -8,6 +8,7 @@ import pyautogui
 from src.constants import (
     DOSBOX_PATH,
     CONF_PATH,
+    IMAGE_DEBUG_DIR,
     PLAYER_TEMPLATE_PATH,
     DONKEY_TEMPLATE_PATH,
     DEBUG_RAW_PATH,
@@ -53,7 +54,10 @@ def run_detection_once():
         time.sleep(2)
 
         frame = capture_screen(region)
-        cv.imwrite(DEBUG_RAW_PATH, frame)
+        os.makedirs(IMAGE_DEBUG_DIR, exist_ok=True)
+
+        if not cv.imwrite(DEBUG_RAW_PATH, frame):
+            raise RuntimeError(f"Failed to save the raw frame: {DEBUG_RAW_PATH}")
         print("Saved raw frame to:", DEBUG_RAW_PATH)
 
         player_result = detect_one(
@@ -77,7 +81,8 @@ def run_detection_once():
         state = build_state(player_result, donkey_result, frame.shape)
         print("State:", state)
 
-        cv.imwrite(DEBUG_RESULT_PATH, frame)
+        if not cv.imwrite(DEBUG_RESULT_PATH, frame):
+            raise RuntimeError(f"Failed to save the result frame: {DEBUG_RESULT_PATH}")
         print("Saved result frame to:", DEBUG_RESULT_PATH)
 
         cv.imshow("Detection result", frame)

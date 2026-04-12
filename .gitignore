@@ -11,3 +11,4 @@ __pycache__/
 *.log
 
 data/debug/*
+!data/debug/.gitkeep

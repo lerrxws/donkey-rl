@@ -16,7 +16,7 @@ from src.constants import (
 )
 from src.window import find_dosbox_window, activate_window, get_capture_region
 from src.capture import capture_screen
-from src.detection import detect_one, build_state
+from src.detection import detect_one, build_state, draw_score_rois, extract_score_rois
 
 
 def validate_paths():
@@ -76,6 +76,19 @@ def run_detection_once():
 
         print("Player result:", player_result)
         print("Donkey result:", donkey_result)
+
+        donkey_roi_img, car_roi_img = extract_score_rois(frame)
+        draw_score_rois(frame)
+
+        donkey_roi_path = os.path.join(IMAGE_DEBUG_DIR, "donkey_roi.png")
+        car_roi_path = os.path.join(IMAGE_DEBUG_DIR, "car_roi.png")
+
+        if not cv.imwrite(donkey_roi_path, donkey_roi_img):
+            raise RuntimeError(f"Failed to save donkey ROI image: {donkey_roi_path}")
+        if not cv.imwrite(car_roi_path, car_roi_img):
+            raise RuntimeError(f"Failed to save car ROI image: {car_roi_path}")
+        print("Saved donkey ROI to:", donkey_roi_path)
+        print("Saved car ROI to:", car_roi_path)
 
         state = build_state(player_result, donkey_result, frame.shape)
         print("State:", state)

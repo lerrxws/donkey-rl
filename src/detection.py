@@ -2,6 +2,80 @@ import cv2 as cv
 import numpy as np
 
 
+DONKEY_ROI = (0.116, 0.179, 0.079, 0.051)
+CAR_ROI    = (0.751, 0.179, 0.079, 0.051)
+
+
+def roi_to_pixels(frame, roi_rel):
+    height, width = frame.shape[:2]
+    rx, ry, rw, rh = roi_rel
+
+    x = int(round(rx * width))
+    y = int(round(ry * height))
+    w = max(1, int(round(rw * width)))
+    h = max(1, int(round(rh * height)))
+
+    x = max(0, min(x, width - 1))
+    y = max(0, min(y, height - 1))
+    w = min(w, width - x)
+    h = min(h, height - y)
+
+    return x, y, w, h
+
+
+def crop_roi(frame, roi):
+    x, y, w, h = roi
+    return frame[y:y+h, x:x+w]
+
+
+def extract_score_rois(frame):
+    donkey_roi = roi_to_pixels(frame, DONKEY_ROI)
+    car_roi = roi_to_pixels(frame, CAR_ROI)
+    donkey_img = crop_roi(frame, donkey_roi)
+    car_img = crop_roi(frame, car_roi)
+    return donkey_img, car_img
+
+
+def draw_score_rois(frame):
+    donkey_x, donkey_y, donkey_w, donkey_h = roi_to_pixels(frame, DONKEY_ROI)
+    car_x, car_y, car_w, car_h = roi_to_pixels(frame, CAR_ROI)
+
+    cv.rectangle(
+        frame,
+        (donkey_x, donkey_y),
+        (donkey_x + donkey_w, donkey_y + donkey_h),
+        (255, 255, 0),
+        2,
+    )
+    cv.putText(
+        frame,
+        "DONKEY ROI",
+        (donkey_x, max(15, donkey_y - 5)),
+        cv.FONT_HERSHEY_SIMPLEX,
+        0.45,
+        (255, 255, 0),
+        1,
+        cv.LINE_AA,
+    )
+
+    cv.rectangle(
+        frame,
+        (car_x, car_y),
+        (car_x + car_w, car_y + car_h),
+        (0, 255, 255),
+        2,
+    )
+    cv.putText(
+        frame,
+        "CAR ROI",
+        (car_x, max(15, car_y - 5)),
+        cv.FONT_HERSHEY_SIMPLEX,
+        0.45,
+        (0, 255, 255),
+        1,
+        cv.LINE_AA,
+    )
+
 def detect_one(
     frame,
     template_path: str,
@@ -16,6 +90,7 @@ def detect_one(
     frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
     w, h = template.shape[::-1]
 
+    print(f"width: {w}, height: {h}")
     res = cv.matchTemplate(frame_gray, template, cv.TM_CCOEFF_NORMED)
     _, max_val, _, max_loc = cv.minMaxLoc(res)
 
@@ -28,6 +103,7 @@ def detect_one(
         "center": None,
         "size": (w, h),
     }
+
 
     if found:
         top_left = max_loc

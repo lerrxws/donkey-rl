@@ -33,7 +33,6 @@ def validate_paths():
 
 def run_detection_once():
     validate_paths()
-
     process = None
     try:
         print("Starting DOSBox...")

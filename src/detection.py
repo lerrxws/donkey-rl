@@ -52,7 +52,12 @@ def detect_one(
     return result
 
 
-def build_state(player_result: dict, donkey_result: dict, frame_shape: tuple) -> dict:
+def build_state(
+    player_result: dict,
+    donkey_result: dict,
+    frame_shape: tuple,
+    prev_state: np.ndarray | None = None,
+) -> np.ndarray:
     height, width = frame_shape[:2]
 
     def _coords(result):
@@ -63,20 +68,30 @@ def build_state(player_result: dict, donkey_result: dict, frame_shape: tuple) ->
 
     px, py, px_n, py_n = _coords(player_result)
     dx, dy, dx_n, dy_n = _coords(donkey_result)
+    rel_x = float((dx_n - px_n) if (px_n is not None and dx_n is not None) else 0.0)
+    rel_y = float((dy_n - py_n) if (py_n is not None and dy_n is not None) else 0.0)
 
-    state = {
-        "player_found": int(player_result["found"]),
-        "donkey_found": int(donkey_result["found"]),
-        "player_x": px,
-        "player_y": py,
-        "player_x_norm": px_n,
-        "player_y_norm": py_n,
-        "donkey_x": dx,
-        "donkey_y": dy,
-        "donkey_x_norm": dx_n,
-        "donkey_y_norm": dy_n,
-        "dx": (dx - px) if (px is not None and dx is not None) else None,
-        "dy": (dy - py) if (py is not None and dy is not None) else None,
-    }
+    prev_rel_x = 0.0
+    prev_rel_y = 0.0
+    if prev_state is not None and len(prev_state) >= 8:
+        prev_rel_x = float(prev_state[6])
+        prev_rel_y = float(prev_state[7])
+
+    # Relative velocity between consecutive frames.
+    rel_vx = rel_x - prev_rel_x
+    rel_vy = rel_y - prev_rel_y
+
+    state = np.array([
+        float(player_result["found"]),
+        float(donkey_result["found"]),
+        float(px_n if px_n is not None else 0.0),
+        float(py_n if py_n is not None else 0.0),
+        float(dx_n if dx_n is not None else 0.0),
+        float(dy_n if dy_n is not None else 0.0),
+        rel_x,
+        rel_y,
+        rel_vx,
+        rel_vy,
+    ], dtype=np.float32)
 
     return state

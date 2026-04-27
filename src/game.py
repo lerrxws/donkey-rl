@@ -295,8 +295,14 @@ def print_score_counters_every_second(interval_sec: float = 1.0):
         if process is not None:
             process.terminate()
 
-def _compute_reward_penalties(prev_stable_driver, prev_stable_donkey, 
-                               curr_stable_driver, curr_stable_donkey, score):
+def _compute_reward_penalties(
+        prev_stable_driver: int, 
+        prev_stable_donkey: int, 
+        curr_stable_driver: int, 
+        curr_stable_donkey: int, 
+        score: float
+    ) :
+    
     done = False
 
     if any(v is None for v in (prev_stable_driver, prev_stable_donkey, 

@@ -216,11 +216,17 @@ def print_score_counters_every_second(interval_sec: float = 1.0):
         time.sleep(1)
 
         print(f"Reading score counters every {interval_sec:.1f}s. Press Ctrl+C to stop.")
-        donkey_score_history = deque(maxlen=2)
-        driver_score_history = deque(maxlen=2)
-        donkey_stable = None
+        driver_score_history = deque(maxlen=3)
+        donkey_score_history = deque(maxlen=3)
+        
         driver_stable = None
+        donkey_stable = None
+        
         min_conf = 0.35
+
+        score=0
+        prev_stable_driver=0
+        prev_stable_donkey=0
 
         while True:
             frame = capture_screen(region)
@@ -230,23 +236,38 @@ def print_score_counters_every_second(interval_sec: float = 1.0):
             donkey_raw = counters["donkey"] if counters["donkey_conf"] >= min_conf else None
             driver_raw = counters["driver"] if counters["driver_conf"] >= min_conf else None
 
+            if driver_stable is not None:
+                prev_stable_driver=driver_stable
+            if donkey_stable is not None:
+                prev_stable_donkey=donkey_stable
+                
             donkey_confirmed = _update_stable_value(donkey_score_history, donkey_raw)
             driver_confirmed = _update_stable_value(driver_score_history, driver_raw)
+
             if donkey_confirmed is not None:
                 donkey_stable = donkey_confirmed
             if driver_confirmed is not None:
                 driver_stable = driver_confirmed
-
+            
             donkey_raw_str = "?" if donkey_raw is None else str(donkey_raw)
             driver_raw_str = "?" if driver_raw is None else str(driver_raw)
             donkey_stable_str = "?" if donkey_stable is None else str(donkey_stable)
             driver_stable_str = "?" if driver_stable is None else str(driver_stable)
             
+            score = _compute_reward_penalties(
+                prev_stable_driver=prev_stable_driver,
+                prev_stable_donkey=prev_stable_donkey,
+                curr_stable_driver=driver_stable,
+                curr_stable_donkey=donkey_stable,
+                score=score,
+            )
+            
             print(
                 f"[{timestamp}] Donkey score={donkey_raw_str} stable={donkey_stable_str} "
                 f"(conf={counters['donkey_conf']:.3f}) | "
                 f"Driver score={driver_raw_str} stable={driver_stable_str} "
-                f"(conf={counters['driver_conf']:.3f})"
+                f"(conf={counters['driver_conf']:.3f}) | "
+                f"score={score}"
             )
             
             time.sleep(interval_sec)
@@ -256,3 +277,16 @@ def print_score_counters_every_second(interval_sec: float = 1.0):
     finally:
         if process is not None:
             process.terminate()
+
+def _compute_reward_penalties(prev_stable_driver, prev_stable_donkey, curr_stable_driver, curr_stable_donkey, score):
+    if any(v is None for v in (prev_stable_driver, prev_stable_donkey, curr_stable_driver, curr_stable_donkey)):
+        return score
+
+    if prev_stable_donkey < curr_stable_donkey:
+        score -= 100
+    elif prev_stable_driver < curr_stable_driver:
+        score += 50
+    elif prev_stable_donkey == curr_stable_donkey and prev_stable_driver == curr_stable_driver:
+        score += 0.1
+
+    return score

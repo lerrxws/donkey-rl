@@ -241,7 +241,7 @@ def print_score_counters_every_second(interval_sec: float = 1.0):
             driver_raw_str = "?" if driver_raw is None else str(driver_raw)
             donkey_stable_str = "?" if donkey_stable is None else str(donkey_stable)
             driver_stable_str = "?" if driver_stable is None else str(driver_stable)
-
+            
             print(
                 f"[{timestamp}] Donkey score={donkey_raw_str} stable={donkey_stable_str} "
                 f"(conf={counters['donkey_conf']:.3f}) | "

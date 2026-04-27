@@ -146,7 +146,6 @@ def load_score_templates(score_templates_dir: str) -> dict[int, np.ndarray]:
 def split_score_digits(score_roi_img, max_digits: int = 3):
     binary = preprocess_score_image(score_roi_img)
 
-    # Remove tiny specks before contour extraction.
     binary = cv.morphologyEx(binary, cv.MORPH_OPEN, np.ones((2, 2), dtype=np.uint8))
 
     contours, _ = cv.findContours(binary, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
@@ -161,7 +160,6 @@ def split_score_digits(score_roi_img, max_digits: int = 3):
         if h < max(4, int(roi_h * 0.35)):
             continue
         if w > int(roi_w * 0.9) and h > int(roi_h * 0.9):
-            # Skip large full-ROI blobs (background artifacts).
             continue
 
         boxes.append((x, y, w, h))
@@ -303,7 +301,6 @@ def build_state(
         prev_rel_x = float(prev_state[6])
         prev_rel_y = float(prev_state[7])
 
-    # Relative velocity between consecutive frames.
     rel_vx = rel_x - prev_rel_x
     rel_vy = rel_y - prev_rel_y
 

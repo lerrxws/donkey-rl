@@ -311,6 +311,7 @@ def build_state(
         float(dy_n if dy_n is not None else 0.0),
         rel_x,
         rel_y,
+        float(np.sqrt(rel_x**2 + rel_y**2)),
         rel_vx,
         rel_vy,
     ], dtype=np.float32)

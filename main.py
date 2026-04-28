@@ -1,5 +1,5 @@
 from src.constants import BASE_DIR, CONF_PATH, DOSBOX_PATH, PLAYER_TEMPLATE_PATH, DONKEY_TEMPLATE_PATH
-from src.game import print_score_counters_every_second
+from src.game import run_training
  
  
 def main():
@@ -9,8 +9,7 @@ def main():
     print("PLAYER_TEMPLATE_PATH:", PLAYER_TEMPLATE_PATH)
     print("DONKEY_TEMPLATE_PATH:", DONKEY_TEMPLATE_PATH)
  
-    print_score_counters_every_second(interval_sec=0.3)
- 
+    run_training(num_episodes=500, step_interval=0.2)
  
 if __name__ == "__main__":
     main()

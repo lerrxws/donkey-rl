@@ -4,6 +4,7 @@ import subprocess
 from collections import deque
 
 import cv2 as cv
+import numpy as np
 import pyautogui
 
 from src.constants import (
@@ -27,6 +28,9 @@ from src.detection import (
     read_score_counters,
 )
 
+MIN_CONF = 0.35
+
+
 
 def _update_stable_value(history: deque, candidate):
     if candidate is None:
@@ -44,267 +48,13 @@ def _update_stable_value(history: deque, candidate):
     return None
 
 
-
-def validate_paths():
-    required = {
-        "DOSBox.exe": DOSBOX_PATH,
-        "dosbox.conf": CONF_PATH,
-        "player_template.png": PLAYER_TEMPLATE_PATH,
-        "donkey_template.png": DONKEY_TEMPLATE_PATH,
-    }
-    for name, path in required.items():
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"{name} не знайдено: {path}")
-
-
-def run_detection_once():
-    validate_paths()
-    process = None
-    try:
-        print("Starting DOSBox...")
-        process = subprocess.Popen([DOSBOX_PATH, "-conf", CONF_PATH])
-        time.sleep(3)
-
-        window = find_dosbox_window(timeout=10)
-        activate_window(window)
-
-        print(f"Window found: left={window.left}, top={window.top}, "
-              f"width={window.width}, height={window.height}")
-
-        region = get_capture_region(window)
-        print("Capture region:", region)
-
-        print("Sending SPACE...")
-        pyautogui.press("space")
-        time.sleep(2)
-
-        frame = capture_screen(region)
-        os.makedirs(IMAGE_DEBUG_DIR, exist_ok=True)
-
-        if not cv.imwrite(DEBUG_RAW_PATH, frame):
-            raise RuntimeError(f"Failed to save the raw frame: {DEBUG_RAW_PATH}")
-        print("Saved raw frame to:", DEBUG_RAW_PATH)
-
-        player_result = detect_one(
-            frame,
-            PLAYER_TEMPLATE_PATH,
-            label="player",
-            threshold=0.80,
-            color=(0, 255, 0),
-        )
-        donkey_result = detect_one(
-            frame,
-            DONKEY_TEMPLATE_PATH,
-            label="donkey",
-            threshold=0.75,
-            color=(0, 0, 255),
-        )
-
-        print("Player result:", player_result)
-        print("Donkey result:", donkey_result)
-
-        donkey_roi_img, car_roi_img = extract_score_rois(frame)
-        draw_score_rois(frame)
-
-        donkey_roi_path = os.path.join(IMAGE_DEBUG_DIR, "donkey_roi.png")
-        car_roi_path = os.path.join(IMAGE_DEBUG_DIR, "car_roi.png")
-
-        if not cv.imwrite(donkey_roi_path, donkey_roi_img):
-            raise RuntimeError(f"Failed to save donkey ROI image: {donkey_roi_path}")
-        if not cv.imwrite(car_roi_path, car_roi_img):
-            raise RuntimeError(f"Failed to save car ROI image: {car_roi_path}")
-        print("Saved donkey ROI to:", donkey_roi_path)
-        print("Saved car ROI to:", car_roi_path)
-
-        state = build_state(player_result, donkey_result, frame.shape)
-        print("State:", state)
-
-        if not cv.imwrite(DEBUG_RESULT_PATH, frame):
-            raise RuntimeError(f"Failed to save the result frame: {DEBUG_RESULT_PATH}")
-        print("Saved result frame to:", DEBUG_RESULT_PATH)
-
-        cv.imshow("Detection result", frame)
-        cv.waitKey(0)
-        cv.destroyAllWindows()
-
-        return state
-
-    finally:
-        if process is not None:
-            process.terminate()
-
-
-def capture_donkey_score_templates(interval_sec: float = 2.0):
-    validate_paths()
-
-    output_dir = os.path.join(IMAGE_TEMPLATE_DIR, "donkey_score_samples")
-    os.makedirs(output_dir, exist_ok=True)
-
-    process = None
-    sample_idx = 0
-    try:
-        print("Starting DOSBox...")
-        process = subprocess.Popen([DOSBOX_PATH, "-conf", CONF_PATH])
-        time.sleep(3)
-
-        window = find_dosbox_window(timeout=10)
-        activate_window(window)
-
-        print(f"Window found: left={window.left}, top={window.top}, "
-              f"width={window.width}, height={window.height}")
-
-        region = get_capture_region(window)
-        print("Capture region:", region)
-
-        print("Sending SPACE...")
-        pyautogui.press("space")
-        time.sleep(1)
-
-        print(f"Capturing Donkey score ROI every {interval_sec:.1f}s. Press Ctrl+C to stop.")
-        while True:
-            frame = capture_screen(region)
-            donkey_roi_img, _ = extract_score_rois(frame)
-
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            out_path = os.path.join(
-                output_dir,
-                f"donkey_score_{timestamp}_{sample_idx:04d}.png",
-            )
-
-            if not cv.imwrite(out_path, donkey_roi_img):
-                raise RuntimeError(f"Failed to save donkey score ROI image: {out_path}")
-
-            print("Saved donkey score ROI to:", out_path)
-            sample_idx += 1
-            time.sleep(interval_sec)
-
-    except KeyboardInterrupt:
-        print("Stopped by user.")
-    finally:
-        if process is not None:
-            process.terminate()
-
-
-def print_score_counters_every_second(interval_sec: float = 1.0):
-    validate_paths()
-
-    score_templates_dir = os.path.join(IMAGE_TEMPLATE_DIR, "score_templates")
-    templates = load_score_templates(score_templates_dir)
-    if not templates:
-        raise RuntimeError(
-            "No score templates found. Put digit_0.png..digit_9.png or donkey_score_*_0000..0009.png "
-            f"into {score_templates_dir}"
-        )
-
-    process = None
-    try:
-        print("Starting DOSBox...")
-        process = subprocess.Popen([DOSBOX_PATH, "-conf", CONF_PATH])
-        time.sleep(3)
-
-        window = find_dosbox_window(timeout=10)
-        activate_window(window)
-
-        print(f"Window found: left={window.left}, top={window.top}, "
-              f"width={window.width}, height={window.height}")
-
-        region = get_capture_region(window)
-        print("Capture region:", region)
-
-        print("Sending SPACE...")
-        pyautogui.press("space")
-        time.sleep(1)
-
-        print(f"Reading score counters every {interval_sec:.1f}s. Press Ctrl+C to stop.")
-        
-        
-        while True:
-            driver_score_history = deque(maxlen=3)
-            donkey_score_history = deque(maxlen=3)
-
-            driver_stable = None
-            donkey_stable = None
-
-            min_conf=0.35
-
-            score_per_episode = 0
-            prev_stable_driver = None 
-            prev_stable_donkey = None 
-
-            episode_done = False
-
-            while not episode_done:
-                frame = capture_screen(region)
-                counters = read_score_counters(frame, templates)
-                timestamp = time.strftime("%H:%M:%S")
-
-                donkey_raw = counters["donkey"] if counters["donkey_conf"] >= min_conf else None
-                driver_raw = counters["driver"] if counters["driver_conf"] >= min_conf else None
-
-                donkey_confirmed = _update_stable_value(donkey_score_history, donkey_raw)
-                driver_confirmed = _update_stable_value(driver_score_history, driver_raw)
-
-                if donkey_confirmed is not None:
-                    donkey_stable = donkey_confirmed
-                if driver_confirmed is not None:
-                    driver_stable = driver_confirmed
-
-                if prev_stable_driver is None and driver_stable is not None:
-                    prev_stable_driver = driver_stable
-                if prev_stable_donkey is None and donkey_stable is not None:
-                    prev_stable_donkey = donkey_stable
-
-                score, episode_done = _compute_reward_penalties(
-                    prev_stable_driver=prev_stable_driver,
-                    prev_stable_donkey=prev_stable_donkey,
-                    curr_stable_driver=driver_stable,
-                    curr_stable_donkey=donkey_stable
-                )
-                
-                score_per_episode+=score
-
-                if driver_stable is not None:
-                    prev_stable_driver = driver_stable
-                if donkey_stable is not None:
-                    prev_stable_donkey = donkey_stable
-
-                
-                
-                donkey_raw_str = "?" if donkey_raw is None else str(donkey_raw)
-                driver_raw_str = "?" if driver_raw is None else str(driver_raw)
-                donkey_stable_str = "?" if donkey_stable is None else str(donkey_stable)
-                driver_stable_str = "?" if driver_stable is None else str(driver_stable)
-
-                print(
-                    f"[{timestamp}] Donkey score={donkey_raw_str} stable={donkey_stable_str} "
-                    f"(conf={counters['donkey_conf']:.3f}) | "
-                    f"Driver score={driver_raw_str} stable={driver_stable_str} "
-                    f"(conf={counters['driver_conf']:.3f}) | "
-                    f"score={score}"
-                )
-                if episode_done:
-                    print(
-                        f"[{timestamp}] Episode ended. Total score: {score_per_episode}\n",
-                        60*"=-"
-                    )
-                    break
-                time.sleep(interval_sec)
-
-    except KeyboardInterrupt:
-        print("Stopped by user.")
-    finally:
-        if process is not None:
-            process.terminate()
-
-def _compute_reward_penalties(
+def _compute_reward(
         prev_stable_driver: int,
         prev_stable_donkey: int,
         curr_stable_driver: int,
         curr_stable_donkey: int,
 ) -> tuple[float, bool]:
-
-    if any(v is None for v in (prev_stable_driver, prev_stable_donkey,
-                                curr_stable_driver, curr_stable_donkey)):
+    if any(v is None for v in (prev_stable_driver, prev_stable_donkey,curr_stable_driver, curr_stable_donkey)):
         return 0.0, False
 
     if prev_stable_donkey < curr_stable_donkey:
@@ -314,3 +64,167 @@ def _compute_reward_penalties(
         return 50.0 + 0.1, False
 
     return 0.1, False
+
+
+def validate_paths():
+    required = {
+        "DOSBox.exe":         DOSBOX_PATH,
+        "dosbox.conf":        CONF_PATH,
+        "player_template.png": PLAYER_TEMPLATE_PATH,
+        "donkey_template.png": DONKEY_TEMPLATE_PATH,
+    }
+    for name, path in required.items():
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{name} not found: {path}")
+
+
+
+
+def game_step(
+        region,
+        templates: dict,
+        prev_state: np.ndarray | None,
+) -> tuple[np.ndarray, dict]:
+    frame = capture_screen(region)
+
+    player_result = detect_one(
+        frame, PLAYER_TEMPLATE_PATH,
+        label="player", threshold=0.80, color=(0, 255, 0),
+    )
+    donkey_result = detect_one(
+        frame, DONKEY_TEMPLATE_PATH,
+        label="donkey", threshold=0.75, color=(0, 0, 255),
+    )
+
+    state = build_state(player_result, donkey_result, frame.shape, prev_state)
+    counters = read_score_counters(frame, templates)
+
+    return state, counters
+
+
+
+
+def run_episode(
+        region,
+        templates: dict,
+        episode_idx: int = 0,
+        step_interval: float = 0.0,
+) -> tuple[float, list[np.ndarray]]:
+    
+    driver_history = deque(maxlen=2)
+    donkey_history = deque(maxlen=2)
+
+    driver_stable = None
+    donkey_stable = None
+    prev_stable_driver = None
+    prev_stable_donkey = None
+    prev_state = None
+
+    total_reward = 0.0
+    states = []
+    step = 0
+
+    while True:
+        state, counters = game_step(region, templates, prev_state)
+        states.append(state)
+
+        donkey_raw = counters["donkey"] if counters["donkey_conf"] >= MIN_CONF else None
+        driver_raw = counters["driver"] if counters["driver_conf"] >= MIN_CONF else None
+
+        donkey_confirmed = _update_stable_value(donkey_history, donkey_raw)
+        driver_confirmed = _update_stable_value(driver_history, driver_raw)
+
+        if donkey_confirmed is not None:
+            donkey_stable = donkey_confirmed
+        if driver_confirmed is not None:
+            driver_stable = driver_confirmed
+
+        if prev_stable_donkey is None and donkey_stable is not None:
+            prev_stable_donkey = donkey_stable
+        if prev_stable_driver is None and driver_stable is not None:
+            prev_stable_driver = driver_stable
+
+        reward, done = _compute_reward(
+            prev_stable_driver, prev_stable_donkey,
+            driver_stable, donkey_stable,
+        )
+        total_reward += reward
+
+        ts = time.strftime("%H:%M:%S")
+        print(
+            f"[{ts}] ep ={episode_idx:3d} | "
+            f"donkey_stable ={donkey_stable!s:>3} "
+            f"(conf={counters['donkey_conf']:.2f}) | "
+            f"driver_stable ={driver_stable!s:>3} "
+            f"(conf={counters['driver_conf']:.2f}) | "
+            f"reward ={reward:+7.1f}  total ={total_reward:+8.1f}"
+        )
+
+        if driver_stable is not None:
+            prev_stable_driver = driver_stable
+        if donkey_stable is not None:
+            prev_stable_donkey = donkey_stable
+        prev_state = state
+        step += 1
+
+        if done:
+            print(
+                f"\n{'=-' * 40}\n"
+                f"Episode {episode_idx} finished after {step} steps  |  "
+                f"total reward = {total_reward:.1f}\n"
+                f"{'=-' * 40}\n"
+            )
+            break
+
+        if step_interval > 0:
+            time.sleep(step_interval)
+
+    return total_reward, states
+
+
+
+
+def run_training(num_episodes: int = 500, step_interval: float = 0.0):
+    validate_paths()
+
+    score_templates_dir = os.path.join(IMAGE_TEMPLATE_DIR, "score_templates")
+    templates = load_score_templates(score_templates_dir)
+    if not templates:
+        raise RuntimeError(
+            "No score templates found. "
+            f"Put digit_0.png..digit_9.png into {score_templates_dir}"
+        )
+
+    process = None
+    try:
+        print("Starting DOSBox…")
+        process = subprocess.Popen([DOSBOX_PATH, "-conf", CONF_PATH])
+        time.sleep(3)
+
+        window = find_dosbox_window(timeout=10)
+        activate_window(window)
+        print(f"Window: left={window.left} top={window.top} "
+              f"w={window.width} h={window.height}")
+
+        region = get_capture_region(window)
+
+        pyautogui.press("space")
+        time.sleep(1)
+
+        episode_rewards: list[float] = []
+
+        for ep in range(num_episodes):
+            total_reward, _ = run_episode(
+                region, templates,
+                episode_idx=ep,
+                step_interval=step_interval,
+            )
+            episode_rewards.append(total_reward)
+
+            time.sleep(0.3)
+
+    except KeyboardInterrupt:
+        print("Training stopped by user.")
+    finally:
+        if process is not None:
+            process.terminate()

@@ -305,14 +305,13 @@ def build_state(
     rel_vy = rel_y - prev_rel_y
 
     state = np.array([
-        float(player_result["found"]),
-        float(donkey_result["found"]),
         float(px_n if px_n is not None else 0.0),
         float(py_n if py_n is not None else 0.0),
         float(dx_n if dx_n is not None else 0.0),
         float(dy_n if dy_n is not None else 0.0),
         rel_x,
         rel_y,
+        float(np.sqrt(rel_x**2 + rel_y**2)),
         rel_vx,
         rel_vy,
     ], dtype=np.float32)

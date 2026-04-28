@@ -227,7 +227,7 @@ def print_score_counters_every_second(interval_sec: float = 1.0):
 
             min_conf=0.35
 
-            score = 0
+            score_per_episode = 0
             prev_stable_driver = None 
             prev_stable_donkey = None 
 
@@ -258,9 +258,10 @@ def print_score_counters_every_second(interval_sec: float = 1.0):
                     prev_stable_driver=prev_stable_driver,
                     prev_stable_donkey=prev_stable_donkey,
                     curr_stable_driver=driver_stable,
-                    curr_stable_donkey=donkey_stable,
-                    score=score,
+                    curr_stable_donkey=donkey_stable
                 )
+                
+                score_per_episode+=score
 
                 if driver_stable is not None:
                     prev_stable_driver = driver_stable
@@ -283,7 +284,7 @@ def print_score_counters_every_second(interval_sec: float = 1.0):
                 )
                 if episode_done:
                     print(
-                        f"[{timestamp}] Episode ended. Total score: {score}\n",
+                        f"[{timestamp}] Episode ended. Total score: {score_per_episode}\n",
                         60*"=-"
                     )
                     break
@@ -296,27 +297,20 @@ def print_score_counters_every_second(interval_sec: float = 1.0):
             process.terminate()
 
 def _compute_reward_penalties(
-        prev_stable_driver: int, 
-        prev_stable_donkey: int, 
-        curr_stable_driver: int, 
-        curr_stable_donkey: int, 
-        score: float
-    ) :
-    
-    done = False
+        prev_stable_driver: int,
+        prev_stable_donkey: int,
+        curr_stable_driver: int,
+        curr_stable_donkey: int,
+) -> tuple[float, bool]:
 
-    if any(v is None for v in (prev_stable_driver, prev_stable_donkey, 
+    if any(v is None for v in (prev_stable_driver, prev_stable_donkey,
                                 curr_stable_driver, curr_stable_donkey)):
-        return score, done
+        return 0.0, False
 
     if prev_stable_donkey < curr_stable_donkey:
-        score -= 100
-        done = True
-        return score, done
+        return -100.0, True
 
     if prev_stable_driver < curr_stable_driver:
-        score += 50
+        return 50.0 + 0.1, False
 
-    score += 0.1
-
-    return score, done
+    return 0.1, False

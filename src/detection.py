@@ -237,8 +237,6 @@ def detect_one(
 
     frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
     w, h = template.shape[::-1]
-
-    print(f"width: {w}, height: {h}")
     res = cv.matchTemplate(frame_gray, template, cv.TM_CCOEFF_NORMED)
     _, max_val, _, max_loc = cv.minMaxLoc(res)
 

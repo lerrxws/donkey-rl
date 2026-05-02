@@ -5,6 +5,7 @@ from enum import Enum
 import torch
 import torch.optim as optim
 import torch.nn as nn
+import numpy as np
 
 from agents.model import DQNModel
 from agents.replay_buffer import ReplayBuffer
@@ -44,3 +45,19 @@ class DQNAgent:
 
     def remember(self,state,action,reward,next_state,done):
         self.replay_buffer.push(state,action,reward,next_state,done)
+
+    
+    def train_step(self):
+        buffer=self.replay_buffer.sample()
+        if buffer is None:
+            return
+        
+        states, actions, rewards, next_states, dones = zip(*buffer)
+
+        states=torch.FloatTensor(np.array(states))      
+        actions=torch.LongTensor(actions)                
+        rewards=torch.FloatTensor(rewards)               
+        next_states=torch.FloatTensor(np.array(next_states))
+        dones=torch.FloatTensor(dones)
+
+        

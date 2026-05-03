@@ -27,6 +27,8 @@ from src.detection import (
     load_score_templates,
     read_score_counters,
 )
+from agents.dgn_agent import DQNAgent
+from agents.perform_action import perform_action
 
 MIN_CONF = 0.35
 
@@ -96,7 +98,7 @@ def game_step(
         label="donkey", threshold=0.75, color=(0, 0, 255),
     )
 
-    state = build_state(player_result, donkey_result, frame.shape, prev_state)
+    state = build_state(player_result, donkey_result, frame.shape)
     counters = read_score_counters(frame, templates)
 
     return state, counters
@@ -107,6 +109,7 @@ def game_step(
 def run_episode(
         region,
         templates: dict,
+        agent: DQNAgent,
         episode_idx: int = 0,
         step_interval: float = 0.0,
 ) -> tuple[float, list[np.ndarray]]:
@@ -150,6 +153,13 @@ def run_episode(
         )
         total_reward += reward
 
+        action=agent.select_action(state)
+        perform_action(action)
+
+        if prev_state is not None:
+            agent.remember(prev_state,action,reward,state,done)
+            agent.train_step()
+
         ts = time.strftime("%H:%M:%S")
         print(
             f"[{ts}] ep ={episode_idx:3d} | "
@@ -157,7 +167,8 @@ def run_episode(
             f"(conf={counters['donkey_conf']:.2f}) | "
             f"driver_stable ={driver_stable!s:>3} "
             f"(conf={counters['driver_conf']:.2f}) | "
-            f"reward ={reward:+7.1f}  total ={total_reward:+8.1f}"
+            f"reward ={reward:+7.1f}  total ={total_reward:+8.1f} | ",
+            f"epsilon={agent.epsilon:.3f}"
         )
 
         if driver_stable is not None:
@@ -184,7 +195,7 @@ def run_episode(
 
 
 
-def run_training(num_episodes: int = 500, step_interval: float = 0.0):
+def run_training(num_episodes: int = 20000, step_interval: float = 0.0):
     validate_paths()
 
     score_templates_dir = os.path.join(IMAGE_TEMPLATE_DIR, "score_templates")
@@ -212,10 +223,11 @@ def run_training(num_episodes: int = 500, step_interval: float = 0.0):
         time.sleep(1)
 
         episode_rewards: list[float] = []
-
+        agent=DQNAgent()
         for ep in range(num_episodes):
             total_reward, _ = run_episode(
                 region, templates,
+                agent,
                 episode_idx=ep,
                 step_interval=step_interval,
             )
@@ -228,3 +240,14 @@ def run_training(num_episodes: int = 500, step_interval: float = 0.0):
     finally:
         if process is not None:
             process.terminate()
+
+if __name__ == "__main__":
+    agent = DQNAgent()
+    
+    state = np.random.rand(9).astype(np.float32)
+    action = agent.select_action(state)
+    print(f"Action: {action}")
+    
+    next_state = np.random.rand(9).astype(np.float32)
+    agent.remember(state, action, 0.1, next_state, False)
+    print(f"Buffer size: {len(agent.replay_buffer)}")

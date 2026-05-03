@@ -4,7 +4,8 @@ import random
 
 class ReplayBuffer():
     def __init__(self):
-        self.buffer =deque(maxlen=10000)
+        self.buffer =deque(maxlen=500000)
+        self.min_buffer_size=1000
     
     def __len__(self):
         return len(self.buffer)
@@ -13,7 +14,7 @@ class ReplayBuffer():
         self.buffer.append((state,action,reward,next_state,done))
 
     def sample(self,batch_size=32):
-        if len(self.buffer)<batch_size:
+        if len(self.buffer)<self.min_buffer_size:
             return None
         return random.sample(self.buffer,batch_size)
 

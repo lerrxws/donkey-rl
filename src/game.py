@@ -98,7 +98,7 @@ def game_step(
         label="donkey", threshold=0.75, color=(0, 0, 255),
     )
 
-    state = build_state(player_result, donkey_result, frame.shape, prev_state)
+    state = build_state(player_result, donkey_result, frame.shape)
     counters = read_score_counters(frame, templates)
 
     return state, counters
@@ -195,7 +195,7 @@ def run_episode(
 
 
 
-def run_training(num_episodes: int = 500, step_interval: float = 0.0):
+def run_training(num_episodes: int = 20000, step_interval: float = 0.0):
     validate_paths()
 
     score_templates_dir = os.path.join(IMAGE_TEMPLATE_DIR, "score_templates")

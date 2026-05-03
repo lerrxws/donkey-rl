@@ -3,7 +3,7 @@ from torch import nn
 
 
 class DQNModel(nn.Module):
-    def __init__(self, state_size: int = 9, action_size: int = 2, hidden_layers: list = [64, 64]):
+    def __init__(self, state_size: int = 7, action_size: int = 2, hidden_layers: list = [64, 64]):
         super(DQNModel, self).__init__()
 
         layers = []
@@ -31,5 +31,5 @@ if __name__ == "__main__":
     print(model_2)
     print(model_3)
 
-    test_input = torch.rand(1, 9)
+    test_input = torch.rand(1, 7)
     print(model_2(test_input)) 

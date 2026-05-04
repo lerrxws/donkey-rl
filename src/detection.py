@@ -396,26 +396,6 @@ def predict_score_value(score_roi_img, templates: dict[int, np.ndarray]):
 
     return value, confidence
 
-
-def _choose_best_score_candidate(candidates):
-    valid = [
-        c for c in candidates
-        if c[0] is not None and c[1] >= SCORE_INTERNAL_MIN_CONF
-    ]
-
-    if not valid:
-        return None, 0.0
-
-    valid.sort(
-        key=lambda c: (c[2], c[1]),
-        reverse=True,
-    )
-
-    best_value, best_conf, best_digit_count, best_source = valid[0]
-
-    return best_value, best_conf
-
-
 def read_score_counters(
     frame,
     templates: dict[int, np.ndarray],

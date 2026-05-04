@@ -454,17 +454,14 @@ def run_training(
         window = find_dosbox_window(timeout=10)
         activate_window(window)
 
-        print(
-            f"Window: left={window.left} top={window.top} "
-            f"w={window.width} h={window.height}"
-        )
-
         region = get_capture_region(window)
+
+        agent = DQNAgent()
 
         pyautogui.press("space")
         time.sleep(1)
 
-        agent = DQNAgent()
+        
 
         episode_rewards: list[float] = []
 

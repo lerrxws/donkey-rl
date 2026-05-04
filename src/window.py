@@ -24,11 +24,6 @@ def find_dosbox_window(timeout=10):
     start = time.time()
 
     while time.time() - start < timeout:
-        all_titles = gw.getAllTitles()
-        print("All window titles:")
-        for t in all_titles:
-            if t.strip():
-                print("  ", repr(t))
 
         candidates = [
             w

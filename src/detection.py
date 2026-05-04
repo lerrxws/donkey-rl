@@ -1,37 +1,19 @@
 import cv2 as cv
 import numpy as np
 import os
-
-
-# ============================================================
-# SCORE ROI CONFIG
-# ============================================================
-
-# SMALL — старый ROI, хорошо подходит для 1–2 цифр.
-# WIDE — расширенный вправо ROI, нужен для 3+ цифр.
-#
-# Если 100/999 всё ещё обрезается — увеличивай width у *_WIDE.
-# Если попадает мусор — уменьши width или сдвинь x.
 DONKEY_ROI_SMALL = (0.118, 0.179, 0.079, 0.051)
 DONKEY_ROI_WIDE  = (0.118, 0.179, 0.130, 0.051)
 
 CAR_ROI_SMALL = (0.753, 0.179, 0.079, 0.051)
 CAR_ROI_WIDE  = (0.753, 0.179, 0.130, 0.051)
 
-# Для обратной совместимости со старым кодом.
 DONKEY_ROI = DONKEY_ROI_SMALL
 CAR_ROI = CAR_ROI_SMALL
 
-DIGIT_NORMALIZED_SIZE = (24, 16)  # (height, width)
+DIGIT_NORMALIZED_SIZE = (24, 16) 
 
-# Внутренний порог. Не путать с MIN_CONF в game.py.
-# Здесь лучше не делать слишком строго.
 SCORE_INTERNAL_MIN_CONF = 0.15
-
-
-# ============================================================
-# ROI UTILS
-# ============================================================
+ 
 
 def roi_to_pixels(frame, roi_rel):
     height, width = frame.shape[:2]
@@ -56,9 +38,6 @@ def crop_roi(frame, roi):
 
 
 def extract_score_rois(frame):
-    """
-    Старый API: возвращает small ROI.
-    """
     donkey_roi = roi_to_pixels(frame, DONKEY_ROI_SMALL)
     car_roi = roi_to_pixels(frame, CAR_ROI_SMALL)
 
@@ -69,9 +48,6 @@ def extract_score_rois(frame):
 
 
 def extract_score_rois_adaptive(frame):
-    """
-    Новый API: возвращает small + wide ROI.
-    """
     return {
         "donkey_small": crop_roi(frame, roi_to_pixels(frame, DONKEY_ROI_SMALL)),
         "donkey_wide": crop_roi(frame, roi_to_pixels(frame, DONKEY_ROI_WIDE)),
@@ -81,9 +57,6 @@ def extract_score_rois_adaptive(frame):
 
 
 def draw_score_rois(frame):
-    """
-    Рисует small и wide ROI.
-    """
     rois = [
         ("DONKEY_SMALL", DONKEY_ROI_SMALL, (255, 255, 0)),
         ("DONKEY_WIDE", DONKEY_ROI_WIDE, (255, 128, 0)),
@@ -114,21 +87,7 @@ def draw_score_rois(frame):
         )
 
 
-# ============================================================
-# SCORE PREPROCESSING
-# ============================================================
-
 def preprocess_score_image(image):
-    """
-    Делает binary mask:
-        цифра = белая
-        фон = чёрный
-
-    Подходит под твой score:
-        - бирюзовый фон
-        - тёмно-серый квадрат под цифрой
-        - светло-серая цифра
-    """
     if image is None or image.size == 0:
         return None
 
@@ -137,19 +96,12 @@ def preprocess_score_image(image):
 
     saturation = hsv[:, :, 1]
 
-    # Бирюзовый фон цветной, saturation высокая.
-    # Серый фон и цифра имеют saturation ниже.
     grayish_mask = saturation < 120
 
     vals = gray[grayish_mask]
     if vals.size == 0:
         return np.zeros(gray.shape, dtype=np.uint8)
 
-    # Внутри grayish пикселей есть:
-    # - тёмный серый фон
-    # - светлая серая цифра
-    #
-    # Берём верхнюю часть яркости.
     bg_level = float(np.median(vals))
     p75 = float(np.percentile(vals, 75))
 
@@ -157,7 +109,6 @@ def preprocess_score_image(image):
 
     mask = (grayish_mask & (gray >= threshold)).astype(np.uint8) * 255
 
-    # Чуть склеиваем антиалиасинг цифры.
     kernel = np.ones((2, 2), dtype=np.uint8)
     mask = cv.morphologyEx(mask, cv.MORPH_CLOSE, kernel)
 
@@ -180,9 +131,6 @@ def crop_to_content(binary_img):
 
 
 def normalize_digit(binary_img, size=DIGIT_NORMALIZED_SIZE, pad=2):
-    """
-    Приводит любую цифру к одному размеру.
-    """
     cropped = crop_to_content(binary_img)
 
     if cropped is None:
@@ -217,21 +165,7 @@ def normalize_digit(binary_img, size=DIGIT_NORMALIZED_SIZE, pad=2):
 
     return canvas
 
-
-# ============================================================
-# SCORE TEMPLATES
-# ============================================================
-
 def load_score_templates(score_templates_dir: str) -> dict[int, np.ndarray]:
-    """
-    Загружает:
-        digit_0.png
-        digit_1.png
-        ...
-        digit_9.png
-
-    Каждый файл должен содержать одну цифру, не весь score.
-    """
     templates: dict[int, np.ndarray] = {}
 
     if not os.path.isdir(score_templates_dir):
@@ -264,9 +198,6 @@ def load_score_templates(score_templates_dir: str) -> dict[int, np.ndarray]:
 
 
 def debug_templates(templates: dict[int, np.ndarray]):
-    """
-    Вызови вручную после загрузки templates, если распознавание странное.
-    """
     for digit, img in sorted(templates.items()):
         white_pixels = int(np.count_nonzero(img))
         print(
@@ -275,25 +206,7 @@ def debug_templates(templates: dict[int, np.ndarray]):
         )
         cv.imwrite(f"debug_template_{digit}.png", img)
 
-
-# ============================================================
-# SCORE DIGIT SPLIT
-# ============================================================
-
 def split_score_digits(score_roi_img, max_digits: int = 4, debug_prefix: str | None = None):
-    """
-    Разбивает score переменной длины:
-        0
-        4
-        10
-        41
-        99
-        100
-
-    Важно:
-    Эта версия НЕ склеивает соседние цифры через gap <= 2.
-    Иначе 41 превращается в одну "цифру".
-    """
     binary = preprocess_score_image(score_roi_img)
 
     if binary is None:
@@ -317,7 +230,6 @@ def split_score_digits(score_roi_img, max_digits: int = 4, debug_prefix: str | N
     if h <= 0 or w <= 0:
         return []
 
-    # Колонки, где есть белые пиксели цифры.
     col_has_pixels = np.any(binary > 0, axis=0)
 
     segments = []
@@ -337,7 +249,6 @@ def split_score_digits(score_roi_img, max_digits: int = 4, debug_prefix: str | N
     if in_segment:
         segments.append((start, w))
 
-    # Убираем только совсем мелкий шум.
     segments = [
         (x1, x2)
         for x1, x2 in segments
@@ -347,11 +258,6 @@ def split_score_digits(score_roi_img, max_digits: int = 4, debug_prefix: str | N
     if not segments:
         return []
 
-    # ВАЖНО:
-    # Не делаем merge по gap <= 2.
-    # Иначе "41" превращается в один сегмент.
-    #
-    # Разрешаем merge только если сегменты реально соприкасаются.
     merged = []
     cur_start, cur_end = segments[0]
 
@@ -403,10 +309,6 @@ def split_score_digits(score_roi_img, max_digits: int = 4, debug_prefix: str | N
     return digit_images
 
 
-# ============================================================
-# SCORE PREDICTION
-# ============================================================
-
 def _dice_similarity(a: np.ndarray, b: np.ndarray) -> float:
     a_bin = (a > 0).astype(np.uint8)
     b_bin = (b > 0).astype(np.uint8)
@@ -423,12 +325,6 @@ def _dice_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def predict_score_digit(digit_img, templates: dict[int, np.ndarray]):
-    """
-    Предсказывает одну цифру.
-
-    Не используем matchTemplate, потому что на маленьких binary images
-    фон начинает доминировать. Dice similarity сравнивает форму цифры.
-    """
     if not templates:
         return None, 0.0
 
@@ -463,10 +359,6 @@ def _predict_score_value_meta(
     max_digits: int = 4,
     debug_prefix: str | None = None,
 ):
-    """
-    Возвращает:
-        value, confidence, digit_count
-    """
     digit_images = split_score_digits(
         score_roi_img,
         max_digits=max_digits,
@@ -495,9 +387,6 @@ def _predict_score_value_meta(
 
 
 def predict_score_value(score_roi_img, templates: dict[int, np.ndarray]):
-    """
-    Старый API.
-    """
     value, confidence, _ = _predict_score_value_meta(
         score_roi_img,
         templates,
@@ -509,15 +398,6 @@ def predict_score_value(score_roi_img, templates: dict[int, np.ndarray]):
 
 
 def _choose_best_score_candidate(candidates):
-    """
-    candidates:
-        list of (value, confidence, digit_count, source_name)
-
-    Логика:
-    1. Если есть число с большим количеством цифр и нормальной уверенностью,
-       выбираем его.
-    2. Иначе выбираем по confidence.
-    """
     valid = [
         c for c in candidates
         if c[0] is not None and c[1] >= SCORE_INTERNAL_MIN_CONF
@@ -526,9 +406,6 @@ def _choose_best_score_candidate(candidates):
     if not valid:
         return None, 0.0
 
-    # Сначала предпочитаем больше цифр.
-    # Это важно для ситуации:
-    # small ROI прочитал "10", wide ROI прочитал "100".
     valid.sort(
         key=lambda c: (c[2], c[1]),
         reverse=True,
@@ -586,10 +463,6 @@ def read_score_counters(
         "driver_conf": car_conf,
     }
 
-
-# ============================================================
-# OBJECT DETECTION
-# ============================================================
 
 def detect_one(
     frame,
@@ -662,31 +535,12 @@ def detect_one(
 
     return result
 
-
-# ============================================================
-# STATE VECTOR
-# ============================================================
-
 def build_state(
     player_result: dict,
     donkey_result: dict,
     frame_shape: tuple,
 ) -> np.ndarray:
-    """
-    State vector size = 7:
 
-    [
-        px_n,
-        py_n,
-        dx_n,
-        dy_n,
-        rel_x,
-        rel_y,
-        distance
-    ]
-
-    Не меняю размер state, чтобы не ломать твою модель.
-    """
     height, width = frame_shape[:2]
 
     def _coords(result):
@@ -699,19 +553,17 @@ def build_state(
     px, py, px_n, py_n = _coords(player_result)
     dx, dy, dx_n, dy_n = _coords(donkey_result)
 
-    rel_x = float(
-        (dx_n - px_n)
-        if (px_n is not None and dx_n is not None)
-        else 0.0
-    )
+    player_visible = px_n is not None and py_n is not None
+    donkey_visible = dx_n is not None and dy_n is not None
 
-    rel_y = float(
-        (dy_n - py_n)
-        if (py_n is not None and dy_n is not None)
-        else 0.0
-    )
-
-    distance = float(np.sqrt(rel_x ** 2 + rel_y ** 2))
+    if player_visible and donkey_visible:
+        rel_x = float(dx_n - px_n)
+        rel_y = float(dy_n - py_n)
+        distance = float(np.sqrt(rel_x ** 2 + rel_y ** 2))
+    else:
+        rel_x = 0.0
+        rel_y = 0.0
+        distance = 1.0
 
     state = np.array(
         [
@@ -722,6 +574,8 @@ def build_state(
             rel_x,
             rel_y,
             distance,
+            float(player_visible),
+            float(donkey_visible),
         ],
         dtype=np.float32,
     )

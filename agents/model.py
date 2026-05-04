@@ -3,7 +3,7 @@ from torch import nn
 
 
 class DQNModel(nn.Module):
-    def __init__(self, state_size: int = 7, action_size: int = 2, hidden_layers: list = [64, 64]):
+    def __init__(self, state_size: int = 9, action_size: int = 2, hidden_layers: list = [64, 64]):
         super(DQNModel, self).__init__()
 
         layers = []

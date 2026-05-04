@@ -28,7 +28,7 @@ class DQNAgent:
 
         self.epsilon = 1.0
         self.epsilon_min = 0.05
-        self.epsilon_decay = 0.995
+        self.epsilon_decay = 0.9995
 
         self.gamma = 0.99
         self.step_counter = 0
@@ -36,7 +36,6 @@ class DQNAgent:
 
     def select_action(self, state):
         if random.random() < self.epsilon:
-            # Space is rare. Random 50/50 is bad for this game.
             return Action.CHANGE.value if random.random() < 0.15 else Action.NOTHING.value
 
         with torch.no_grad():
@@ -61,11 +60,7 @@ class DQNAgent:
         next_states = torch.FloatTensor(np.array(next_states))
         dones = torch.FloatTensor(dones).unsqueeze(1)
 
-        # scaling:
-        # +0.1  -> +0.001
-        # +50   -> +0.5
-        # -100  -> -1.0
-        rewards = torch.clamp(rewards / 100.0, -1.0, 1.0)
+        rewards = rewards / 100.0
 
         q_values = self.training_net(states)
         q_values = q_values.gather(1, actions)
@@ -92,7 +87,7 @@ class DQNAgent:
         if self.step_counter % self.target_update_every == 0:
             self.target_net.load_state_dict(self.training_net.state_dict())
 
-        if self.step_counter % 100 == 0:
+        if self.step_counter % 1000 == 0:
             print(
                 f"train_step={self.step_counter} "
                 f"loss={loss.item():.4f} "

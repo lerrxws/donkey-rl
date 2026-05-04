@@ -245,11 +245,6 @@ def run_episode(
     total_reward = 0.0
     states: list[np.ndarray] = []
 
-    action_counts = {
-        0: 0,
-        1: 0,
-    }
-
     step = 0
 
     print(f"[ep={episode_idx}] Waiting for player...")
@@ -276,8 +271,6 @@ def run_episode(
             executed_action = 0
 
         perform_action(executed_action)
-
-        action_counts[executed_action] += 1
 
         if executed_action == 1:
             space_cooldown = SPACE_COOLDOWN_STEPS
@@ -415,7 +408,6 @@ def run_episode(
                 f"\n{'=-' * 40}\n"
                 f"Episode {episode_idx} finished after {step} steps | "
                 f"total reward = {total_reward:.1f}\n"
-                f"actions = {action_counts}\n"
                 f"{'=-' * 40}\n"
             )
             break
@@ -460,8 +452,6 @@ def run_training(
 
         pyautogui.press("space")
         time.sleep(1)
-
-        
 
         episode_rewards: list[float] = []
 

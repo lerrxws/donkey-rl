@@ -23,11 +23,7 @@ from src.detection import (
     load_score_templates,
     read_score_counters,
 )
-<<<<<<< HEAD
-
-=======
 from src.seed_init import set_seed
->>>>>>> remotes/origin/dk/q-learning
 from agents.dgn_agent import DQNAgent
 from agents.perform_action import perform_action
 
@@ -38,11 +34,7 @@ STEP_REWARD = 1.0
 LAP_REWARD = 100.0
 CRASH_REWARD = -100.0
 
-<<<<<<< HEAD
-SPACE_COOLDOWN_STEPS = 3
-=======
 SPACE_COOLDOWN_STEPS = 2
->>>>>>> remotes/origin/dk/q-learning
 LOST_PLAYER_LIMIT = 3
 
 
@@ -98,42 +90,6 @@ def _compute_score_reward(
         return LAP_REWARD + STEP_REWARD, False
 
     return STEP_REWARD, False
-<<<<<<< HEAD
-
-
-def _danger_reward(state: np.ndarray, action: int) -> float:
-    """
-    Дополнительный shaping reward.
-
-    Это не teacher. Агент всё равно сам выбирает action.
-    Мы просто даём reward раньше, когда ситуация опасная.
-    """
-    (
-        px_n,
-        py_n,
-        dx_n,
-        dy_n,
-        rel_x,
-        rel_y,
-        distance,
-        player_visible,
-        donkey_visible,
-    ) = state
-
-    if player_visible < 0.5 or donkey_visible < 0.5:
-        return 0.0
-
-    same_lane = abs(rel_x) < 0.06
-    danger_y = -0.45 < rel_y < -0.12
-
-    if same_lane and danger_y:
-        if action == 1:
-            return +8.0
-        return -8.0
-
-    return 0.0
-=======
->>>>>>> remotes/origin/dk/q-learning
 
 
 def _danger_reward(state: np.ndarray, action: int) -> float:

@@ -3,4 +3,8 @@ mss == 10.1.0
 pygetwindow == 0.0.9
 pyautogui == 0.9.54
 numpy == 2.0.2
+<<<<<<< HEAD
 torch
+=======
+torch == 2.11.0
+>>>>>>> remotes/origin/dk/q-learning

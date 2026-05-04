@@ -426,6 +426,7 @@ def run_episode(
 def run_training(
     num_episodes: int = 20000,
     step_interval: float = 0.15,
+    flag_double: bool = False
 ):
     set_seed(42)
     validate_paths()
@@ -464,7 +465,7 @@ def run_training(
         pyautogui.press("space")
         time.sleep(1)
 
-        agent = DQNAgent()
+        agent = DQNAgent(flag_double=flag_double)
 
         episode_rewards: list[float] = []
 

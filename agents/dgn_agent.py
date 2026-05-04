@@ -16,7 +16,12 @@ class Action(Enum):
 
 
 class DQNAgent:
-    def __init__(self):
+    def __init__(self,flag_double=False):
+        self.flag_double=flag_double
+        if flag_double:
+            print("Init Double DQN agent...")
+        else:   
+            print("Init DQN agent...")
         self.training_net = DQNModel()
         self.target_net = DQNModel()
         self.target_net.load_state_dict(self.training_net.state_dict())
@@ -66,9 +71,14 @@ class DQNAgent:
         q_values = q_values.gather(1, actions)
 
         with torch.no_grad():
-            q_next = self.target_net(next_states)
-            q_next_max = q_next.max(dim=1, keepdim=True).values
-            targets = rewards + self.gamma * q_next_max * (1.0 - dones)
+            if self.flag_double:
+                next_actions = self.training_net(next_states).argmax(dim=1, keepdim=True)
+                q_next = self.target_net(next_states).gather(1, next_actions)
+                targets = rewards + self.gamma * q_next * (1.0 - dones)
+            else:
+                q_next = self.target_net(next_states)
+                q_next_max = q_next.max(dim=1, keepdim=True).values
+                targets = rewards + self.gamma * q_next_max * (1.0 - dones)
 
         loss = F.smooth_l1_loss(q_values, targets)
 

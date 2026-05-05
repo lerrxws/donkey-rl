@@ -33,7 +33,7 @@ from src.utils.rewarding_system import (
 
 
 from src.seed_init import set_seed
-from agents.dgn_agent import DQNAgent
+from agents.actor_critic_agent import MonteCarloActorCriticAgent
 from agents.perform_action import perform_action
 
 
@@ -41,6 +41,47 @@ MIN_CONF = 0.35
 
 SPACE_COOLDOWN_STEPS = 2
 LOST_PLAYER_LIMIT = 3
+REWARD_DIVISOR = 100.0
+
+
+def _agent_epsilon_text(agent) -> str:
+    epsilon = getattr(agent, "epsilon", None)
+    if epsilon is None:
+        return "NA"
+    return f"{epsilon:.3f}"
+
+
+LOG_PROB_ACTION = 1
+ACTION_NAMES = {
+    0: "noop",
+    1: "space",
+}
+
+
+def _agent_action_prob_text(agent, action: int) -> str:
+    probs = getattr(agent, "last_probs", None)
+    if probs is None:
+        return "NA"
+
+    probs = np.asarray(probs, dtype=np.float32).flatten()
+
+    if action < 0 or action >= len(probs):
+        return "NA"
+
+    return f"{float(probs[action]):.3f}"
+
+
+def _agent_probs_text(agent) -> str:
+    probs = getattr(agent, "last_probs", None)
+    if probs is None:
+        return "NA"
+
+    probs = np.asarray(probs, dtype=np.float32).flatten()
+
+    return " ".join(
+        f"p_{ACTION_NAMES.get(idx, f'action_{idx}')}={float(prob):.3f}"
+        for idx, prob in enumerate(probs)
+    )
 
 
 def _update_stable_value(history: deque, candidate):
@@ -146,7 +187,7 @@ def game_step(region, templates: dict) -> tuple[np.ndarray, dict]:
 def run_episode(
     region,
     templates: dict,
-    agent: DQNAgent,
+    agent: MonteCarloActorCriticAgent,
     episode_idx: int = 0,
     step_interval: float = 0.15,
 ) -> tuple[float, list[np.ndarray]]:
@@ -306,12 +347,13 @@ def run_episode(
             if lost_player_frames >= LOST_PLAYER_LIMIT:
                 reward = min(reward, -10.0)
 
-        total_reward += reward
+        scaled_reward = reward / REWARD_DIVISOR
+        total_reward += scaled_reward
 
         agent.remember(
             state,
             executed_action,
-            reward,
+            scaled_reward,
             next_state,
             done,
         )
@@ -335,11 +377,14 @@ def run_episode(
             f"[{ts}] ep={episode_idx:4d} | "
             f"step={step:4d} | "
             f"action={executed_action} | "
+            f"p_action_{LOG_PROB_ACTION}={_agent_action_prob_text(agent, LOG_PROB_ACTION)} | "
+            f"p_selected={_agent_action_prob_text(agent, selected_action)} | "
+            f"probs={_agent_probs_text(agent)} | "
             f"donkey_stable={donkey_stable!s:>4} | "
             f"driver_stable={driver_stable!s:>4} | "
-            f"reward={reward:+7.1f} "
-            f"total={total_reward:+8.1f} | "
-            f"epsilon={agent.epsilon:.3f}"
+            f"reward={scaled_reward:+8.3f} "
+            f"total={total_reward:+8.3f} | "
+            f"epsilon={_agent_epsilon_text(agent)}"
         )
 
         if driver_stable is not None:
@@ -352,12 +397,16 @@ def run_episode(
         step += 1
 
         if done:
-            avg_loss = float(np.mean(episode_losses))
+            finish_metrics = agent.finish_episode()
+            if finish_metrics is not None:
+                episode_losses.append(finish_metrics["loss"])
+
+            avg_loss = float(np.mean(episode_losses)) if episode_losses else None
             loss_text = f"{avg_loss:.4f}" if avg_loss is not None else "NA"
             print(
                 f"\n{'=-' * 40}\n"
                 f"Episode {episode_idx} finished after {step} steps | "
-                f"total reward = {total_reward:.1f} | "
+                f"total reward = {total_reward:.3f} | "
                 f"avg_loss = {loss_text}\n"
                 f"{'=-' * 40}\n"
             )
@@ -400,7 +449,11 @@ def run_training(
 
         region = get_capture_region(window)
 
-        agent = DQNAgent()
+        agent = MonteCarloActorCriticAgent(
+            state_size=9,
+            action_size=2,
+            reward_scale=1.0,
+        )
 
         pyautogui.press("space")
         time.sleep(1)
@@ -422,9 +475,9 @@ def run_training(
 
             print(
                 f"[TRAIN] episode={ep} "
-                f"reward={total_reward:.1f} "
-                f"avg_last_10={avg_last_10:.1f} "
-                f"epsilon={agent.epsilon:.3f}"
+                f"reward={total_reward:.3f} "
+                f"avg_last_10={avg_last_10:.3f} "
+                f"epsilon={_agent_epsilon_text(agent)}"
             )
 
     except KeyboardInterrupt:
@@ -434,7 +487,7 @@ def run_training(
         end_time=time.perf_counter()
         elapsed=end_time-start_time
         print(
-            f"Training was running for {elapsed:.1f} seconds "
+            f"Training was running for {elapsed:.1f} seconds "         
             f"({elapsed / 60:.2f} minutes)"
         )
         if process is not None:

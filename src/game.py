@@ -575,7 +575,7 @@ def run_training(
     num_episodes: int = 20000,
     step_interval: float = 0.15,
 ):
-    set_seed(42)
+    set_seed(122)
     validate_paths()
 
     score_templates_dir = os.path.join(

@@ -7,13 +7,7 @@ DONKEY_ROI_WIDE  = (0.118, 0.179, 0.130, 0.051)
 CAR_ROI_SMALL = (0.753, 0.179, 0.079, 0.051)
 CAR_ROI_WIDE  = (0.753, 0.179, 0.130, 0.051)
 
-DONKEY_ROI = DONKEY_ROI_SMALL
-CAR_ROI = CAR_ROI_SMALL
-
 DIGIT_NORMALIZED_SIZE = (24, 16) 
-
-SCORE_INTERNAL_MIN_CONF = 0.15
- 
 
 def roi_to_pixels(frame, roi_rel):
     height, width = frame.shape[:2]
@@ -37,16 +31,6 @@ def crop_roi(frame, roi):
     return frame[y:y + h, x:x + w]
 
 
-def extract_score_rois(frame):
-    donkey_roi = roi_to_pixels(frame, DONKEY_ROI_SMALL)
-    car_roi = roi_to_pixels(frame, CAR_ROI_SMALL)
-
-    donkey_img = crop_roi(frame, donkey_roi)
-    car_img = crop_roi(frame, car_roi)
-
-    return donkey_img, car_img
-
-
 def extract_score_rois_adaptive(frame):
     return {
         "donkey_small": crop_roi(frame, roi_to_pixels(frame, DONKEY_ROI_SMALL)),
@@ -54,38 +38,6 @@ def extract_score_rois_adaptive(frame):
         "car_small": crop_roi(frame, roi_to_pixels(frame, CAR_ROI_SMALL)),
         "car_wide": crop_roi(frame, roi_to_pixels(frame, CAR_ROI_WIDE)),
     }
-
-
-def draw_score_rois(frame):
-    rois = [
-        ("DONKEY_SMALL", DONKEY_ROI_SMALL, (255, 255, 0)),
-        ("DONKEY_WIDE", DONKEY_ROI_WIDE, (255, 128, 0)),
-        ("CAR_SMALL", CAR_ROI_SMALL, (0, 255, 255)),
-        ("CAR_WIDE", CAR_ROI_WIDE, (0, 128, 255)),
-    ]
-
-    for label, roi_rel, color in rois:
-        x, y, w, h = roi_to_pixels(frame, roi_rel)
-
-        cv.rectangle(
-            frame,
-            (x, y),
-            (x + w, y + h),
-            color,
-            1,
-        )
-
-        cv.putText(
-            frame,
-            label,
-            (x, max(15, y - 5)),
-            cv.FONT_HERSHEY_SIMPLEX,
-            0.35,
-            color,
-            1,
-            cv.LINE_AA,
-        )
-
 
 def preprocess_score_image(image):
     if image is None or image.size == 0:
@@ -165,6 +117,7 @@ def normalize_digit(binary_img, size=DIGIT_NORMALIZED_SIZE, pad=2):
 
     return canvas
 
+
 def load_score_templates(score_templates_dir: str) -> dict[int, np.ndarray]:
     templates: dict[int, np.ndarray] = {}
 
@@ -195,16 +148,6 @@ def load_score_templates(score_templates_dir: str) -> dict[int, np.ndarray]:
         print(f"[WARN] Loaded only {len(templates)}/10 score templates")
 
     return templates
-
-
-def debug_templates(templates: dict[int, np.ndarray]):
-    for digit, img in sorted(templates.items()):
-        white_pixels = int(np.count_nonzero(img))
-        print(
-            f"[TEMPLATE DEBUG] digit={digit}, "
-            f"shape={img.shape}, white_pixels={white_pixels}"
-        )
-        cv.imwrite(f"debug_template_{digit}.png", img)
 
 def split_score_digits(score_roi_img, max_digits: int = 4, debug_prefix: str | None = None):
     binary = preprocess_score_image(score_roi_img)
@@ -384,17 +327,6 @@ def _predict_score_value_meta(
     value = int("".join(digits))
 
     return value, confidence, len(digits)
-
-
-def predict_score_value(score_roi_img, templates: dict[int, np.ndarray]):
-    value, confidence, _ = _predict_score_value_meta(
-        score_roi_img,
-        templates,
-        max_digits=4,
-        debug_prefix=None,
-    )
-
-    return value, confidence
 
 def read_score_counters(
     frame,

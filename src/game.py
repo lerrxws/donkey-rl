@@ -91,9 +91,9 @@ def _looks_like_collision(state: np.ndarray) -> bool:
     if player_visible < 0.5 or donkey_visible < 0.5:
         return False
 
-    same_lane = abs(rel_x) < 0.06
+    same_lane = abs(rel_x) < 0.08
 
-    collision_y = -0.20 < rel_y < 0.12
+    collision_y = -0.30 < rel_y < 0.12
 
     return same_lane and collision_y
 
@@ -164,13 +164,16 @@ def run_episode(
     prev_raw_donkey = None
 
     lost_player_frames = 0
-    space_cooldown = 0
+    # space_cooldown = 0
     crash_detected = False  
 
     total_reward = 0.0
     states: list[np.ndarray] = []
 
     step = 0
+
+    episode_losses = []
+    avg_loss = None
 
     print(f"[ep={episode_idx}] Waiting for player...")
     for attempt in range(50): 
@@ -191,20 +194,21 @@ def run_episode(
         prev_raw_driver = initial_driver_raw
 
     while True:
+        
         states.append(state)
 
         selected_action = agent.select_action(state)
         executed_action = selected_action
 
-        if space_cooldown > 0 and executed_action == 1:
-            executed_action = 0
+        # if space_cooldown > 0 and executed_action == 1:
+        #     executed_action = 0
 
         perform_action(executed_action)
 
-        if executed_action == 1:
-            space_cooldown = SPACE_COOLDOWN_STEPS
-        else:
-            space_cooldown = max(0, space_cooldown - 1)
+        # if executed_action == 1:
+        #     space_cooldown = SPACE_COOLDOWN_STEPS
+        # else:
+        #     space_cooldown = max(0, space_cooldown - 1)
 
         if step_interval > 0:
             time.sleep(step_interval)
@@ -257,7 +261,7 @@ def run_episode(
         else:
             lost_player_frames = 0
 
-        reward, done = compute_score_reward(
+        reward, done, score_event =  compute_score_reward(
             prev_stable_driver,
             prev_stable_donkey,
             driver_stable,
@@ -269,7 +273,6 @@ def run_episode(
 
         player_was_visible = current_player_visible
         player_now_gone = not next_player_visible
-        were_close = state[6] < 0.30
 
         if (
             player_was_visible
@@ -289,7 +292,7 @@ def run_episode(
         elif raw_crash and crash_detected:
             raw_crash = False
 
-        if not done:
+        if not done and score_event is None:
             if not current_player_visible:
                 reward = min(reward, -5.0)
 
@@ -298,7 +301,7 @@ def run_episode(
 
             reward += danger_reward(state, executed_action)
             reward += unnecessary_action_penalty(state, executed_action)
-            reward += post_action_danger_penalty(next_state)
+            # reward += post_action_danger_penalty(next_state)
 
             if lost_player_frames >= LOST_PLAYER_LIMIT:
                 reward = min(reward, -10.0)
@@ -313,7 +316,9 @@ def run_episode(
             done,
         )
 
-        agent.train_step()
+        loss_value=agent.train_step()
+        if loss_value is not None:
+            episode_losses.append(loss_value)
 
         print(
             "state=",
@@ -332,9 +337,6 @@ def run_episode(
             f"action={executed_action} | "
             f"donkey_stable={donkey_stable!s:>4} | "
             f"driver_stable={driver_stable!s:>4} | "
-            f"lost_player={lost_player_frames} | "
-            f"raw_crash={raw_crash} | "
-            f"crash_detected={crash_detected} | "
             f"reward={reward:+7.1f} "
             f"total={total_reward:+8.1f} | "
             f"epsilon={agent.epsilon:.3f}"
@@ -350,10 +352,13 @@ def run_episode(
         step += 1
 
         if done:
+            avg_loss = float(np.mean(episode_losses))
+            loss_text = f"{avg_loss:.4f}" if avg_loss is not None else "NA"
             print(
                 f"\n{'=-' * 40}\n"
                 f"Episode {episode_idx} finished after {step} steps | "
-                f"total reward = {total_reward:.1f}\n"
+                f"total reward = {total_reward:.1f} | "
+                f"avg_loss = {loss_text}\n"
                 f"{'=-' * 40}\n"
             )
             break
@@ -365,9 +370,10 @@ def run_training(
     num_episodes: int = 20000,
     step_interval: float = 0.15,
 ):
+    start_time=time.perf_counter()
     set_seed(42)
     validate_paths()
-
+    
     score_templates_dir = os.path.join(
         IMAGE_TEMPLATE_DIR,
         "score_templates",
@@ -425,6 +431,12 @@ def run_training(
         print("Training stopped by user.")
 
     finally:
+        end_time=time.perf_counter()
+        elapsed=end_time-start_time
+        print(
+            f"Training was running for {elapsed:.1f} seconds "
+            f"({elapsed / 60:.2f} minutes)"
+        )
         if process is not None:
             process.terminate()
 

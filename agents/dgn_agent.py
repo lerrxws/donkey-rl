@@ -93,3 +93,5 @@ class DQNAgent:
                 f"loss={loss.item():.4f} "
                 f"epsilon={self.epsilon:.3f}"
             )
+        loss_value = float(loss.item())
+        return loss_value

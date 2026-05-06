@@ -3,7 +3,6 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch.distributions import Categorical
 
 from agents.actor_critic.networks.actor import ActorNetwork
@@ -187,44 +186,93 @@ class BaseActorCriticAgent(ABC):
         targets: torch.Tensor,
     ) -> dict:
         """
-        Updates Critic and Actor separately.
+        Batch Actor-Critic update with precomputed targets.
 
-        Critic:
-            minimize error between V(S, w) and target
-
-        Actor:
-            maximize logπ(A | S, θ) * advantage
-
-        Advantage:
-            A_t = target_t - V(S_t, w)
+        Used by Monte Carlo / n-step:
+            targets are computed first,
+            then Critic and Actor are updated separately.
         """
-        log_probs = torch.stack([t.log_prob for t in transitions])
-        values = torch.stack([t.value for t in transitions])
-        entropies = torch.stack([t.entropy for t in transitions])
+        log_probs, values, entropies = self.__extract_training_tensors(transitions)
 
-        advantages = targets - values.detach()
+        # δ = target - V(S)
+        td_errors = targets.detach() - values
 
-        critic_loss = F.smooth_l1_loss(values, targets.detach())
+        # Actor must not backprop through Critic.
+        advantages = td_errors.detach()
 
-        actor_loss = -(log_probs * advantages).mean()
-        entropy_bonus = entropies.mean()
-        actor_loss = actor_loss - self.entropy_coef * entropy_bonus
+        critic_loss = self._update_critic(
+            values=values,
+            targets=targets,
+        )
 
-        self.__optimize_critic(critic_loss)
-        self.__optimize_actor(actor_loss)
+        actor_loss, entropy_bonus = self._update_actor(
+            log_probs=log_probs,
+            advantages=advantages,
+            entropies=entropies,
+        )
 
         metrics = {
             "actor_loss": float(actor_loss.item()),
             "critic_loss": float(critic_loss.item()),
             "entropy": float(entropy_bonus.item()),
-            "mean_value": float(values.mean().item()),
-            "mean_target": float(targets.mean().item()),
+            "mean_value": float(values.detach().mean().item()),
+            "mean_target": float(targets.detach().mean().item()),
             "mean_advantage": float(advantages.mean().item()),
             "batch_size": len(transitions),
         }
 
         self.last_metrics = metrics
         return metrics
+
+    def _update_critic(
+        self,
+        values: torch.Tensor,
+        targets: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Updates Critic.
+
+        Pseudocode idea:
+            φ ← φ + αφ δ ∇V(S)
+
+        where:
+            δ = target - V(S)
+
+        Implemented as minimizing:
+            L_critic = 1/2 * δ²
+        """
+        td_errors = targets.detach() - values
+        critic_loss = 0.5 * td_errors.pow(2).mean()
+
+        self.__optimize_critic(critic_loss)
+
+        return critic_loss.detach()
+
+    def _update_actor(
+        self,
+        log_probs: torch.Tensor,
+        advantages: torch.Tensor,
+        entropies: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Updates Actor.
+
+        Pseudocode idea:
+            θ ← θ + αθ δ ∇logπ(A | S)
+
+        Since PyTorch minimizes loss:
+            L_actor = -logπ(A | S) * δ
+        """
+        actor_loss = -(log_probs * advantages.detach()).mean()
+
+        entropy_bonus = entropies.mean()
+
+        if self.entropy_coef > 0.0:
+            actor_loss = actor_loss - self.entropy_coef * entropy_bonus
+
+        self.__optimize_actor(actor_loss)
+
+        return actor_loss.detach(), entropy_bonus.detach()
 
     # -------------------------------------------------------------------------
     # Public checkpoint API
@@ -278,6 +326,16 @@ class BaseActorCriticAgent(ABC):
     # -------------------------------------------------------------------------
     # Private methods used only inside BaseActorCriticAgent
     # -------------------------------------------------------------------------
+
+    def __extract_training_tensors(
+        self,
+        transitions: list[Transition],
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        log_probs = torch.stack([t.log_prob for t in transitions])
+        values = torch.stack([t.value for t in transitions])
+        entropies = torch.stack([t.entropy for t in transitions])
+
+        return log_probs, values, entropies
 
     def __optimize_actor(self, actor_loss: torch.Tensor) -> None:
         self.actor_optimizer.zero_grad()

@@ -26,7 +26,7 @@ from src.detection import (
 )
 from src.seed_init import set_seed
 from agents.perform_action import perform_action
-from agents.actor_critic.agents.monte_carlo import MonteCarloActorCriticAgent
+from agents.actor_critic_agent import MonteCarloActorCriticAgent
 from agents.dgn_agent import DQNAgent
 
 MIN_CONF = 0.35
@@ -279,7 +279,7 @@ def game_step(region, templates: dict) -> tuple[np.ndarray, dict]:
 
 
 def _format_episode_metrics(mode: AgentMode, agent) -> str:
-    if mode in (AgentMode.DQN, AgentMode.DOUBLE_DQN):
+    if mode == AgentMode.DQN:
         epsilon = getattr(agent, "epsilon", None)
         if epsilon is None:
             return ""
@@ -289,36 +289,21 @@ def _format_episode_metrics(mode: AgentMode, agent) -> str:
     if m is None:
         return ""
 
-    parts = []
+    # probs = agent.last_probs
+    # prob_str = ""
 
-    if "actor_loss" in m:
-        parts.append(f"actor={m['actor_loss']:+.4f}")
+    # if probs is not None and len(probs) >= 2:
+    #     prob_str = f" | probs=[no_jump:{probs[0]:.3f},jump:{probs[1]:.3f}]"
 
-    if "critic_loss" in m:
-        parts.append(f"critic={m['critic_loss']:+.4f}")
-
-    if "mean_advantage" in m:
-        parts.append(f"adv={m['mean_advantage']:+.4f}")
-
-    if "mean_value" in m:
-        parts.append(f"V={m['mean_value']:+.4f}")
-
-    if "mean_target" in m:
-        parts.append(f"target={m['mean_target']:+.4f}")
-
-    if "entropy" in m:
-        parts.append(f"H={m['entropy']:.4f}")
-
-    if "mean_prob_no_jump" in m and "mean_prob_jump" in m:
-        parts.append(
-            f"probs=[no_jump:{m['mean_prob_no_jump']:.3f},"
-            f"jump:{m['mean_prob_jump']:.3f}]"
-        )
-
-    if "mean_selected_action_prob" in m:
-        parts.append(f"selected_p={m['mean_selected_action_prob']:.3f}")
-
-    return " | " + " | ".join(parts) if parts else ""
+    return (
+        f" | loss={m['loss']:+.4f}"
+        f" | actor={m['actor_loss']:+.4f}"
+        f" | critic={m['critic_loss']:+.4f}"
+        f" | adv={m['mean_advantage']:+.4f}"
+        f" | V={m['mean_value']:+.4f}"
+        f" | H={m['entropy']:.4f}"
+        # f"{prob_str}"
+    )
 
 
 def run_episode(
@@ -533,14 +518,6 @@ def run_episode(
         # )
 
         if mode == AgentMode.ACTOR_CRITIC:
-            probs = getattr(agent, "last_probs", None)
-
-            prob_str = (
-                f"probs=[no_jump:{probs[0]:.3f},jump:{probs[1]:.3f}]"
-                if probs is not None and len(probs) >= 2
-                else ""
-            )
-
             print(
                 f"[{ts}] ep={episode_idx:4d} | "
                 f"step={step:4d} | "
@@ -559,7 +536,7 @@ def run_episode(
                 f"donkey={donkey_stable!s:>4} driver={driver_stable!s:>4} | "
                 f"crash={crash_detected} | "
                 f"r={reward:+7.1f} total={total_reward:+8.1f} | "
-                f"{prob_str}"
+                # f"{prob_str}"
             )
         else:
             print(
@@ -603,7 +580,7 @@ def run_episode(
 def run_training(
     num_episodes: int = 20000,
     step_interval: float = 0.15,
-    mode: AgentMode = AgentMode.ACTOR_CRITIC,
+    mode: AgentMode = AgentMode.DQN,
 ):
     set_seed(122)
     validate_paths()
@@ -651,14 +628,10 @@ def run_training(
         else:
             agent = MonteCarloActorCriticAgent(
                 state_size=STATE_SIZE,
-                action_size=2,
                 hidden_layers=[64, 64],
                 gamma=0.97,
-                actor_lr=0.0003,
-                critic_lr=0.0003,
+                lr=0.0003,
                 entropy_coef=0.001,
-                reward_scale=100.0,
-                max_grad_norm=1.0,
                 normalize_returns=True,
             )
 

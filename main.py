@@ -9,7 +9,7 @@ def main():
     print("PLAYER_TEMPLATE_PATH:", PLAYER_TEMPLATE_PATH)
     print("DONKEY_TEMPLATE_PATH:", DONKEY_TEMPLATE_PATH)
  
-    run_training(num_episodes=500, step_interval=0.2)
+    run_training(num_episodes=20000, step_interval=0.2)
  
 if __name__ == "__main__":
     main()

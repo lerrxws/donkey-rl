@@ -38,23 +38,11 @@ CRASH_REWARD = -100.0
 class AgentMode(str, Enum):
     ACTOR_CRITIC = "actor_critic"
     DQN = "dqn"
+    DOUBLE_DQN = "double_dqn"
 
 
 TRAINING_MODE = AgentMode.ACTOR_CRITIC
 
-# State:
-#   0: car_line
-#   1: donkey_line
-#   2: danger
-#
-# car_line/donkey_line:
-#   -1 = object not visible
-#    0 = left lane
-#    1 = right lane
-#
-# danger:
-#    1 = donkey is visible, in the same lane, and in jump timing zone
-#    0 = not dangerous right now
 STATE_SIZE = 3
 
 # If normalized x < 0.5 => left lane, else right lane.
@@ -110,14 +98,6 @@ def _get_raw_counter(counters: dict, name: str):
 
 
 def _x_to_line(x: float, visible: bool) -> float:
-    """
-    Converts normalized X coordinate into lane id.
-
-    Returns:
-        -1.0 if object is not visible
-         0.0 for left lane
-         1.0 for right lane
-    """
     if not visible:
         return -1.0
 
@@ -128,19 +108,6 @@ def _x_to_line(x: float, visible: bool) -> float:
 
 
 def _extract_position_flags(raw_state: np.ndarray) -> dict:
-    """
-    raw_state comes from build_state().
-
-    Expected indices:
-        raw_state[0] = player x normalized
-        raw_state[1] = player y normalized
-        raw_state[2] = donkey x normalized
-        raw_state[3] = donkey y normalized
-        raw_state[4] = rel_x
-        raw_state[5] = rel_y
-        raw_state[7] = player_visible
-        raw_state[8] = donkey_visible
-    """
     player_x = float(raw_state[0])
     donkey_x = float(raw_state[2])
 
@@ -190,17 +157,6 @@ def _extract_position_flags(raw_state: np.ndarray) -> dict:
 
 
 def _build_simple_state(raw_state: np.ndarray) -> np.ndarray:
-    """
-    State [3]:
-        0: car_line
-        1: donkey_line
-        2: danger
-
-    This is better than one binary jump_zone because the agent can distinguish:
-        - donkey in same line;
-        - donkey in another line;
-        - actual danger timing.
-    """
     flags = _extract_position_flags(raw_state)
 
     return np.array(
@@ -243,16 +199,6 @@ def _compute_reward(
     raw_state: np.ndarray,
     action: int,
 ) -> float:
-    """
-    Reward:
-        +1     survival step
-        +101   driver score increased
-        -100   crash
-        -12    jumped when donkey is visible but in another line
-        -10    jumped when danger=0
-        -8     did not jump when danger=1
-        +3     jumped when danger=1
-    """
     if done:
         return base_reward
 
@@ -277,10 +223,6 @@ def _compute_reward(
 
     elif jumped and danger:
         reward += GOOD_DANGER_JUMP_REWARD
-
-    # Keep this disabled unless player detection is stable.
-    # if not player_visible:
-    #     reward = min(reward, -5.0)
 
     return reward
 
@@ -337,7 +279,6 @@ def game_step(region, templates: dict) -> tuple[np.ndarray, dict]:
 
 
 def _format_episode_metrics(mode: AgentMode, agent) -> str:
-    """Formats metrics after finish_episode()."""
     if mode == AgentMode.DQN:
         epsilon = getattr(agent, "epsilon", None)
         if epsilon is None:
@@ -384,6 +325,7 @@ def run_episode(
     prev_stable_donkey = None
 
     prev_raw_donkey = None
+    prev_raw_driver = None
 
     crash_detected = False
 
@@ -420,6 +362,10 @@ def run_episode(
     if initial_donkey_raw is not None:
         prev_raw_donkey = initial_donkey_raw
 
+    initial_driver_raw = _get_raw_counter(counters, "driver")
+    if initial_driver_raw is not None:
+        prev_raw_driver = initial_driver_raw
+
     while True:
         state = _build_state_for_mode(mode, raw_state)
         states.append(state)
@@ -446,6 +392,17 @@ def run_episode(
         if donkey_raw is not None:
             if prev_raw_donkey is None or donkey_raw >= prev_raw_donkey:
                 prev_raw_donkey = donkey_raw
+
+
+        raw_lap = False
+
+        if prev_raw_driver is not None and driver_raw is not None:
+            if driver_raw > prev_raw_driver:
+                raw_lap = True
+
+        if driver_raw is not None:
+            if prev_raw_driver is None or driver_raw >= prev_raw_driver:
+                prev_raw_driver = driver_raw
 
         donkey_confirmed = _update_stable_value(donkey_history, donkey_raw)
         driver_confirmed = _update_stable_value(driver_history, driver_raw)
@@ -477,7 +434,14 @@ def run_episode(
         player_was_visible = current_player_visible
         player_now_gone = not next_player_visible
         were_close = raw_state[6] < 0.30
-        if player_was_visible and player_now_gone and were_close and not crash_detected:
+
+        if (
+            player_was_visible
+            and player_now_gone
+            and were_close
+            and not raw_lap
+            and not crash_detected
+        ):
             crash_detected = True
             base_reward = CRASH_REWARD
             done = True
@@ -518,7 +482,6 @@ def run_episode(
 
         next_state = _build_state_for_mode(mode, next_raw_state)
 
-        # MC: accumulate transitions; training happens in finish_episode().
         agent.remember(
             state,
             action,
@@ -573,7 +536,7 @@ def run_episode(
                 f"donkey={donkey_stable!s:>4} driver={driver_stable!s:>4} | "
                 f"crash={crash_detected} | "
                 f"r={reward:+7.1f} total={total_reward:+8.1f} | "
-                f"{prob_str}"
+                # f"{prob_str}"
             )
         else:
             print(
@@ -657,11 +620,11 @@ def run_training(
 
         region = get_capture_region(window)
 
-        pyautogui.press("space")
-        time.sleep(1)
 
         if mode == AgentMode.DQN:
-            agent = DQNAgent()
+            agent = DQNAgent(flag_double=False)
+        elif mode == AgentMode.DOUBLE_DQN:
+            agent = DQNAgent(flag_double=True)
         else:
             agent = MonteCarloActorCriticAgent(
                 state_size=STATE_SIZE,
@@ -671,6 +634,9 @@ def run_training(
                 entropy_coef=0.001,
                 normalize_returns=True,
             )
+
+        pyautogui.press("space")
+        time.sleep(1)
 
         episode_rewards: list[float] = []
 

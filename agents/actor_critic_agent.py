@@ -7,23 +7,6 @@ from agents.actor_critic_model import ActorCriticModel
 
 
 class MonteCarloActorCriticAgent:
-    """
-    Monte Carlo Actor-Critic агент.
-
-    Ключова відмінність від Bootstrap:
-        Bootstrap: target = r + gamma * V(s')   — оновлення по одному кроку
-        Monte Carlo: target = G_t = r_t + gamma*r_{t+1} + gamma^2*r_{t+2} + ...
-
-    Чому MC краще для цієї задачі:
-        - Епізоди короткі (5-15 кроків)
-        - Краш завжди в кінці — потрібно щоб сигнал дійшов назад до ранніх кроків
-        - Bootstrap не "бачить" що ранні кроки вели до краша
-        - MC рахує повний return, тому крок перед крашем отримує ~-97,
-          два кроки перед крашем ~-94, і т.д.
-
-    Навчання відбувається після кожного епізоду (не по кроках).
-    """
-
     def __init__(
         self,
         state_size: int = 5,
@@ -63,7 +46,6 @@ class MonteCarloActorCriticAgent:
         self.episode_counter = 0
         self.step_counter = 0
 
-        # Буфер поточного епізоду
         self._states: list[np.ndarray] = []
         self._actions: list[int] = []
         self._rewards: list[float] = []
@@ -71,7 +53,6 @@ class MonteCarloActorCriticAgent:
         self._values: list[torch.Tensor] = []
         self._entropies: list[torch.Tensor] = []
 
-        # Для логів
         self.last_probs: np.ndarray | None = None
         self.last_metrics: dict | None = None
 
@@ -109,7 +90,7 @@ class MonteCarloActorCriticAgent:
         state,
         action: int,
         reward: float,
-        next_state,  # не використовується в MC, але зберігаємо для сумісності
+        next_state,
         done: bool,
     ) -> None:
         self._states.append(state)
@@ -117,23 +98,9 @@ class MonteCarloActorCriticAgent:
         self._rewards.append(reward)
 
     def train_step(self):
-        """
-        Заглушка для сумісності з train.py.
-        MC навчається після епізоду — викликай finish_episode().
-        """
         return None
 
     def finish_episode(self) -> dict | None:
-        """
-        Повний gradient update після завершення епізоду.
-
-        Кроки:
-        1. Рахуємо discounted returns G_t для кожного кроку
-        2. Нормалізуємо (опційно) — зменшує дисперсію
-        3. Advantage = G_t - V(s_t)
-        4. Actor loss + Critic loss + Entropy bonus
-        5. Один optimizer step
-        """
         if not self._rewards:
             self._clear_buffers()
             return None
@@ -141,28 +108,23 @@ class MonteCarloActorCriticAgent:
         self.episode_counter += 1
         self.step_counter += len(self._rewards)
 
-        # 1. Discounted returns
         returns = self._compute_returns(self._rewards)
 
         returns_tensor = torch.tensor(
             returns, dtype=torch.float32, device=self.device
         )
 
-        # 2. Нормалізація returns
         if self.normalize_returns and len(returns) > 1:
             returns_tensor = (returns_tensor - returns_tensor.mean()) / (
                 returns_tensor.std() + 1e-8
             )
 
-        # 3. Stack tensors
         log_probs = torch.stack(self._log_probs)
         values = torch.stack(self._values).squeeze(-1)
         entropies = torch.stack(self._entropies)
 
-        # 4. Advantage
         advantages = returns_tensor - values.detach()
 
-        # 5. Losses
         actor_loss = -(log_probs * advantages).mean()
         critic_loss = F.smooth_l1_loss(values, returns_tensor)
         entropy_bonus = entropies.mean()
@@ -173,7 +135,6 @@ class MonteCarloActorCriticAgent:
             - self.entropy_coef * entropy_bonus
         )
 
-        # 6. Update
         self.optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
@@ -197,11 +158,6 @@ class MonteCarloActorCriticAgent:
         return metrics
 
     def _compute_returns(self, rewards: list[float]) -> list[float]:
-        """
-        G_t = r_t + gamma * r_{t+1} + gamma^2 * r_{t+2} + ...
-
-        Рахуємо з кінця епізоду назад — ефективно і просто.
-        """
         returns = []
         G = 0.0
 

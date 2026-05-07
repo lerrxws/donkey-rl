@@ -26,7 +26,7 @@ from src.detection import (
 )
 from src.seed_init import set_seed
 from agents.perform_action import perform_action
-from agents.actor_critic.agents.episodic import  EpisodicActorCriticAgent
+from agents.actor_critic.agents.episodic import EpisodicActorCriticAgent
 from agents.dgn_agent import DQNAgent
 
 MIN_CONF = 0.35

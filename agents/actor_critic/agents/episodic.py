@@ -7,7 +7,7 @@ from agents.actor_critic.agents.actor_critic import (
 )
 
 
-class MonteCarloActorCriticAgent(BaseActorCriticAgent):
+class EpisodicActorCriticAgent(BaseActorCriticAgent):
     def __init__(
         self,
         state_size: int = 5,

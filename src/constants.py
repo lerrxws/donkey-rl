@@ -8,6 +8,13 @@ IMAGE_TEMPLATE_DIR = os.path.join(IMAGE_DIR, "templates")
 IMAGE_SCORE_TEMPLATE_DIR = os.path.join(IMAGE_TEMPLATE_DIR, "score_templates")
 IMAGE_DEBUG_DIR = os.path.join(IMAGE_DIR, "debug")
 
+RUNS_DIR = os.path.join(IMAGE_DIR, "runs")
+CHECKPOINT_DIR = os.path.join(PROJECT_ROOT, "checkpoints")
+GRAPH_DIR_NAME = "graphs"
+
+ONE_STEP_ACTOR_CRITIC_RUN_NAME = "one_step_actor_critic"
+EPISODIC_ACTOR_CRITIC_RUN_NAME = "episodic_actor_critic"
+
 CONF_PATH = os.path.join(PROJECT_ROOT, "dosbox.conf")
 DOSBOX_PATH = r"C:\Program Files (x86)\DOSBox-0.74-3\DOSBox.exe"
 

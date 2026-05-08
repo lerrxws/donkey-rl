@@ -4,6 +4,8 @@ import os
 import matplotlib
 import numpy as np
 
+from src.constants import GRAPH_DIR_NAME
+
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
@@ -37,7 +39,7 @@ def has_columns(rows: list[dict[str, str]], columns: list[str]) -> bool:
 
 
 def ensure_graph_dir(run_dir: str) -> str:
-    graph_dir = os.path.join(run_dir, "graphs")
+    graph_dir = os.path.join(run_dir, GRAPH_DIR_NAME)
     os.makedirs(graph_dir, exist_ok=True)
     return graph_dir
 

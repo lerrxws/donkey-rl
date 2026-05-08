@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 
+from src.constants import RUNS_DIR
 from src.utils.csv_logger import CSVLogger
 
 
@@ -19,7 +20,7 @@ class BaseTrainingTracker(ABC):
         self,
         run_name: str,
         config: dict[str, Any],
-        root_dir: str = "data/runs",
+        root_dir: str = RUNS_DIR,
         save_steps: bool = True,
     ):
         timestamp = time.strftime("%Y_%m_%d_%H_%M_%S")

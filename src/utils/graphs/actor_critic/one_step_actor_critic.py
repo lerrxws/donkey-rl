@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from src.constants import ONE_STEP_ACTOR_CRITIC_RUN_NAME, RUNS_DIR
 from src.utils.graphs.actor_critic.actor_critic import (
     load_actor_critic_episodes,
     plot_episode_steps,
@@ -136,13 +137,14 @@ def plot_one_step_actor_critic_run(run_dir: str) -> list[str]:
 
 
 def plot_latest_one_step_actor_critic_run(
-    root_dir: str = "data/runs",
+    root_dir: str = RUNS_DIR,
 ) -> list[str]:
     run_root = Path(root_dir)
+    run_glob = f"{ONE_STEP_ACTOR_CRITIC_RUN_NAME}_*"
     candidates = sorted(
         [
             path
-            for path in run_root.glob("one_step_actor_critic_*")
+            for path in run_root.glob(run_glob)
             if path.is_dir() and (path / "episodes.csv").exists()
         ],
         key=lambda path: path.stat().st_mtime,
@@ -150,7 +152,7 @@ def plot_latest_one_step_actor_critic_run(
 
     if not candidates:
         raise FileNotFoundError(
-            f"No one_step_actor_critic run with episodes.csv found in {root_dir}"
+            f"No {ONE_STEP_ACTOR_CRITIC_RUN_NAME} run with episodes.csv found in {root_dir}"
         )
 
     return plot_one_step_actor_critic_run(str(candidates[-1]))

@@ -21,7 +21,10 @@ class ActorCriticTracker(BaseTrainingTracker):
         "selected_action_prob",
     ]
 
-    EPISODE_FIELDS = []
+    EPISODE_FIELDS = [
+        "total_reward",
+        "episode_steps",
+    ]
 
     # Aggregated from per-step metrics into one row in episodes.csv.
     EPISODE_SUMMARIES: dict[str, tuple[str, ...]] = {}

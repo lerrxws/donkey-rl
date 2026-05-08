@@ -1,4 +1,4 @@
-from .tracker import BaseTrainingTracker
+from .base import BaseTrainingTracker
 from src.utils.metrics.actor_critic.actor_critic import ActorCriticTracker
 from src.utils.metrics.actor_critic.episodic_actor_critic import EpisodicActorCriticTracker
 from src.utils.metrics.actor_critic.one_step_actor_critic import OneStepActorCriticTracker

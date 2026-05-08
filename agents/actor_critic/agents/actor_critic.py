@@ -78,6 +78,7 @@ class BaseActorCriticAgent(ABC):
         self.__pending_value: torch.Tensor | None = None  # Stored V(s).
         self.__pending_entropy: torch.Tensor | None = None  # Stored policy entropy.
         self.__pending_action_probs: np.ndarray | None = None  # Stored π(a | s).
+        self.__pending_action: int | None = None  # Stored selected action.
 
     # -------------------------------------------------------------------------
     # Public API
@@ -98,10 +99,11 @@ class BaseActorCriticAgent(ABC):
         state_tensor = self._state_tensor(state)
 
         logits = self.actor(state_tensor).squeeze(0)
-        value = self.critic(state_tensor).squeeze(0)
+        value = self.critic(state_tensor).reshape(())
 
         distribution = Categorical(logits=logits)
         action = distribution.sample()
+        action_int = int(action.item())
 
         probs = torch.softmax(logits, dim=-1).detach().cpu().numpy()
 
@@ -111,8 +113,9 @@ class BaseActorCriticAgent(ABC):
         self.__pending_log_prob = distribution.log_prob(action)
         self.__pending_value = value
         self.__pending_entropy = distribution.entropy()
+        self.__pending_action = action_int
 
-        return int(action.item())
+        return action_int
 
     @abstractmethod
     def remember(
@@ -122,7 +125,7 @@ class BaseActorCriticAgent(ABC):
         reward: float,
         next_state,
         done: bool,
-    ) -> None:
+    ) -> dict | None:
         pass
 
     # -------------------------------------------------------------------------
@@ -157,15 +160,23 @@ class BaseActorCriticAgent(ABC):
             or self.__pending_value is None
             or self.__pending_entropy is None
             or self.__pending_action_probs is None
+            or self.__pending_action is None
         ):
             raise RuntimeError("select_action() must be called before remember().")
+
+        action = int(action)
+        if action != self.__pending_action:
+            raise ValueError(
+                "remember() action does not match the action returned by "
+                f"select_action(): expected {self.__pending_action}, got {action}"
+            )
 
         transition = Transition(
             state=np.asarray(state, dtype=np.float32),
             action=action,
             reward=float(reward),
             next_state=np.asarray(next_state, dtype=np.float32),
-            done=done,
+            done=bool(done),
             log_prob=self.__pending_log_prob,
             value=self.__pending_value,
             entropy=self.__pending_entropy,
@@ -354,3 +365,4 @@ class BaseActorCriticAgent(ABC):
         self.__pending_value = None
         self.__pending_entropy = None
         self.__pending_action_probs = None
+        self.__pending_action = None

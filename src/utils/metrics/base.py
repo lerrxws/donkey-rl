@@ -7,57 +7,20 @@ from typing import Any
 
 import numpy as np
 
+from src.constants import RUNS_DIR
 from src.utils.csv_logger import CSVLogger
 
 
 class BaseTrainingTracker(ABC):
-    COMMON_STEP_FIELDS = [
-        "episode",
-        "step",
-        "reward",
-        "total_reward",
-        "action",
-        "done",
-
-        "danger",
-        "same_line",
-        "good_jump",
-        "bad_jump",
-        "missed_jump",
-        "side_jump",
-        "crash",
-    ]
-
-    COMMON_EPISODE_FIELDS = [
-        "episode",
-        "total_reward",
-        "avg_reward_10",
-        "avg_reward_50",
-        "episode_steps",
-
-        "action_0_count",
-        "action_1_count",
-        "action_0_rate",
-        "action_1_rate",
-
-        "good_jumps",
-        "bad_jumps",
-        "missed_jumps",
-        "side_jumps",
-
-        "crash",
-        "crash_rate_50",
-    ]
-
-    STEP_METRIC_FIELDS: list[str] = []
-
-    METRIC_SUMMARIES: dict[str, tuple[str, ...]] = {}
+    STEP_FIELDS: list[str] = []
+    EPISODE_FIELDS: list[str] = []
+    EPISODE_SUMMARIES: dict[str, tuple[str, ...]] = {}
 
     def __init__(
         self,
         run_name: str,
         config: dict[str, Any],
-        root_dir: str = "data/runs",
+        root_dir: str = RUNS_DIR,
         save_steps: bool = True,
     ):
         timestamp = time.strftime("%Y_%m_%d_%H_%M_%S")
@@ -77,9 +40,10 @@ class BaseTrainingTracker(ABC):
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=4, default=str)
 
-        self.step_fields = self.COMMON_STEP_FIELDS + self.STEP_METRIC_FIELDS
+        self.step_fields = ["episode", "step"] + self.STEP_FIELDS
         self.episode_fields = (
-            self.COMMON_EPISODE_FIELDS
+            ["episode"]
+            + self.EPISODE_FIELDS
             + self.__build_episode_metric_fields()
         )
 
@@ -145,7 +109,7 @@ class BaseTrainingTracker(ABC):
         self.episode_logger.close()
 
     def __update_episode_buffers(self, row: dict[str, Any]) -> None:
-        for key in self.STEP_METRIC_FIELDS:
+        for key in self.EPISODE_SUMMARIES:
             value = row.get(key)
 
             if isinstance(value, bool):
@@ -157,7 +121,7 @@ class BaseTrainingTracker(ABC):
     def __compute_metric_summary(self) -> dict[str, float]:
         summary = {}
 
-        for key, summary_types in self.METRIC_SUMMARIES.items():
+        for key, summary_types in self.EPISODE_SUMMARIES.items():
             values = self.episode_buffers.get(key, [])
 
             if not values:
@@ -185,7 +149,7 @@ class BaseTrainingTracker(ABC):
     def __build_episode_metric_fields(self) -> list[str]:
         fields = []
 
-        for key, summary_types in self.METRIC_SUMMARIES.items():
+        for key, summary_types in self.EPISODE_SUMMARIES.items():
             for summary_type in summary_types:
                 fields.append(f"{key}_{summary_type}")
 

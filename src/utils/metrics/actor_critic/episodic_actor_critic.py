@@ -1,4 +1,4 @@
-from .actor_critic import ActorCriticTracker
+from src.utils.metrics.actor_critic.actor_critic import ActorCriticTracker
 
 
 class EpisodicActorCriticTracker(ActorCriticTracker):

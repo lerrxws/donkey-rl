@@ -1,4 +1,4 @@
-from .tracker import BaseTrainingTracker
+from src.utils.metrics.tracker import BaseTrainingTracker
 
 
 class ActorCriticTracker(BaseTrainingTracker):

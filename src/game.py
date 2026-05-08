@@ -13,57 +13,38 @@ from src.constants import (
     IMAGE_TEMPLATE_DIR,
     PLAYER_TEMPLATE_PATH,
     DONKEY_TEMPLATE_PATH,
+    MIN_CONF,
+    STEP_REWARD,
+    LAP_REWARD,
+    CRASH_REWARD,
+    STATE_SIZE,
+    LINE_SPLIT_X,
+    LANE_THRESHOLD,
+    DANGER_Y_MIN,
+    DANGER_Y_MAX,
+    BAD_JUMP_PENALTY,
+    BAD_SIDE_JUMP_PENALTY,
+    MISSED_DANGER_PENALTY,
+    GOOD_DANGER_JUMP_REWARD
 )
-
 from src.window import find_dosbox_window, activate_window, get_capture_region
-from src.capture import capture_screen
-
+from utils.capture import capture_screen
 from src.detection import (
     detect_one,
     build_state,
     load_score_templates,
     read_score_counters,
 )
-from src.seed_init import set_seed
+from utils.seed_init import set_seed
 from agents.perform_action import perform_action
-from agents.actor_critic_agent import MonteCarloActorCriticAgent
+from agents.actor_critic.agents.episodic import EpisodicActorCriticAgent
 from agents.dgn_agent import DQNAgent
 
-MIN_CONF = 0.35
-
-STEP_REWARD = 1.0
-LAP_REWARD = 100.0
-CRASH_REWARD = -100.0
 
 class AgentMode(str, Enum):
     ACTOR_CRITIC = "actor_critic"
     DQN = "dqn"
     DOUBLE_DQN = "double_dqn"
-
-
-TRAINING_MODE = AgentMode.ACTOR_CRITIC
-
-STATE_SIZE = 3
-
-# If normalized x < 0.5 => left lane, else right lane.
-# If your capture crop is asymmetric, tune this value using logs.
-LINE_SPLIT_X = 0.50
-
-# Extra tolerance: if car and donkey x are close enough, treat them as same line
-# even if LINE_SPLIT_X puts them on different sides near the boundary.
-LANE_THRESHOLD = 0.06
-
-# Y zone where jumping is useful.
-# These values are from your older danger_y logic.
-DANGER_Y_MIN = -0.65
-DANGER_Y_MAX = -0.18
-
-# Reward shaping.
-BAD_JUMP_PENALTY = -10.0
-BAD_SIDE_JUMP_PENALTY = -12.0
-MISSED_DANGER_PENALTY = -8.0
-GOOD_DANGER_JUMP_REWARD = 3.0
-
 
 def _update_stable_value(history: deque, candidate):
     if candidate is None:
@@ -195,9 +176,8 @@ def _compute_score_reward(
 def _compute_reward(
     base_reward: float,
     done: bool,
-    player_visible: bool,
     raw_state: np.ndarray,
-    action: int,
+    action: int
 ) -> float:
     if done:
         return base_reward
@@ -227,11 +207,9 @@ def _compute_reward(
     return reward
 
 
-def _build_state_for_mode(mode: AgentMode, raw_state: np.ndarray) -> np.ndarray:
-    if mode == AgentMode.ACTOR_CRITIC:
-        return _build_simple_state(raw_state)
+def _build_state_for_mode(raw_state: np.ndarray) -> np.ndarray:
+    return _build_simple_state(raw_state)
 
-    return raw_state
 def validate_paths():
     required = {
         "DOSBox.exe": DOSBOX_PATH,
@@ -289,11 +267,7 @@ def _format_episode_metrics(mode: AgentMode, agent) -> str:
     if m is None:
         return ""
 
-    # probs = agent.last_probs
-    # prob_str = ""
 
-    # if probs is not None and len(probs) >= 2:
-    #     prob_str = f" | probs=[no_jump:{probs[0]:.3f},jump:{probs[1]:.3f}]"
 
     return (
         f" | loss={m['loss']:+.4f}"
@@ -302,7 +276,6 @@ def _format_episode_metrics(mode: AgentMode, agent) -> str:
         f" | adv={m['mean_advantage']:+.4f}"
         f" | V={m['mean_value']:+.4f}"
         f" | H={m['entropy']:.4f}"
-        # f"{prob_str}"
     )
 
 
@@ -367,7 +340,7 @@ def run_episode(
         prev_raw_driver = initial_driver_raw
 
     while True:
-        state = _build_state_for_mode(mode, raw_state)
+        state = _build_state_for_mode(raw_state)
         states.append(state)
 
         action = agent.select_action(state)
@@ -429,7 +402,6 @@ def run_episode(
         )
 
         current_player_visible = raw_state[7] > 0.5
-        current_donkey_visible = raw_state[8] > 0.5
 
         player_was_visible = current_player_visible
         player_now_gone = not next_player_visible
@@ -480,7 +452,7 @@ def run_episode(
 
         total_reward += reward
 
-        next_state = _build_state_for_mode(mode, next_raw_state)
+        next_state = _build_state_for_mode(next_raw_state)
 
         agent.remember(
             state,
@@ -535,8 +507,7 @@ def run_episode(
                 f"vis=[p:{int(current_player_visible)},d:{int(flags['donkey_visible'])}] | "
                 f"donkey={donkey_stable!s:>4} driver={driver_stable!s:>4} | "
                 f"crash={crash_detected} | "
-                f"r={reward:+7.1f} total={total_reward:+8.1f} | "
-                # f"{prob_str}"
+                f"r={reward:+7.1f} total={total_reward:+8.1f}"
             )
         else:
             print(
@@ -578,9 +549,9 @@ def run_episode(
 
 
 def run_training(
+    mode:AgentMode,
     num_episodes: int = 20000,
-    step_interval: float = 0.15,
-    mode: AgentMode = AgentMode.DQN,
+    step_interval: float = 0.15
 ):
     set_seed(122)
     validate_paths()
@@ -626,7 +597,7 @@ def run_training(
         elif mode == AgentMode.DOUBLE_DQN:
             agent = DQNAgent(flag_double=True)
         else:
-            agent = MonteCarloActorCriticAgent(
+            agent = EpisodicActorCriticAgent(
                 state_size=STATE_SIZE,
                 hidden_layers=[64, 64],
                 gamma=0.97,
@@ -687,6 +658,5 @@ def run_training(
 if __name__ == "__main__":
     run_training(
         num_episodes=20000,
-        step_interval=0.15,
-        mode=TRAINING_MODE,
+        step_interval=0.15
     )

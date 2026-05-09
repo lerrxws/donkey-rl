@@ -8,6 +8,7 @@ import numpy as np
 
 from src.agents.q_learning.model import DQNModel
 from src.agents.q_learning.replay_buffer import ReplayBuffer
+from src.utils.metrics.records import DQNStepRecord
 
 
 class Action(Enum):
@@ -58,11 +59,11 @@ class DQNAgent:
         self.replay_buffer.push(state, action, reward, next_state, done)
         return None
 
-    def train_step(self):
+    def train_step(self) -> DQNStepRecord | None:
         batch = self.replay_buffer.sample()
 
         if batch is None:
-            return
+            return None
 
         states, actions, rewards, next_states, dones = zip(*batch)
 
@@ -110,3 +111,8 @@ class DQNAgent:
                 f"loss={loss.item():.4f} "
                 f"epsilon={self.epsilon:.3f}"
             )
+
+        return DQNStepRecord(
+            loss=float(loss.item()),
+            epsilon=float(self.epsilon),
+        )

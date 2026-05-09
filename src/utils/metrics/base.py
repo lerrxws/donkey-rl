@@ -3,12 +3,14 @@ import os
 import time
 from abc import ABC
 from collections import defaultdict
+from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
 
 from src.config import RUNS_DIR
 from src.utils.csv_logger import CSVLogger
+from src.utils.metrics.records import MetricRecord
 
 
 class BaseTrainingTracker(ABC):
@@ -68,6 +70,7 @@ class BaseTrainingTracker(ABC):
         step: int,
         data: dict[str, Any],
     ) -> None:
+        data = self.__flatten_metric_data(data)
         row = {
             "episode": episode,
             "step": step,
@@ -117,6 +120,22 @@ class BaseTrainingTracker(ABC):
 
             if isinstance(value, (int, float)):
                 self.episode_buffers[key].append(float(value))
+
+    def __flatten_metric_data(self, data: dict[str, Any]) -> dict[str, Any]:
+        flat_data = {}
+
+        for key, value in data.items():
+            if isinstance(value, MetricRecord):
+                flat_data.update(value.to_dict())
+                continue
+
+            if isinstance(value, Mapping):
+                flat_data.update(value)
+                continue
+
+            flat_data[key] = value
+
+        return flat_data
 
     def __compute_metric_summary(self) -> dict[str, float]:
         summary = {}

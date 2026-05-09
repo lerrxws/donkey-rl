@@ -26,9 +26,9 @@ from src.utils.seed_init import set_seed
 from src.utils.metrics import OneStepActorCriticTracker
 from src.utils.graphs import plot_one_step_actor_critic_run
 
-from agents.perform_action import perform_action
-from agents.actor_critic.agents.one_step import OneStepActorCriticAgent
-from agents.dgn_agent import DQNAgent
+from src.agents.perform_action import perform_action
+from src.agents.actor_critic.agents.one_step import OneStepActorCriticAgent
+from src.agents.dgn_agent import DQNAgent
 
 def validate_paths():
     required = {

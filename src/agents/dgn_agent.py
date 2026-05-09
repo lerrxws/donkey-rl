@@ -6,8 +6,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
 
-from agents.model import DQNModel
-from agents.replay_buffer import ReplayBuffer
+from src.agents.model import DQNModel
+from src.agents.replay_buffer import ReplayBuffer
 
 
 class Action(Enum):

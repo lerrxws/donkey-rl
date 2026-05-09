@@ -14,7 +14,7 @@ from src.utils.capture import capture_screen
 from src.utils.counter_tracker import get_raw_counter, update_stable_value
 from src.env.reward import compute_score_reward, compute_reward
 from src.env.state_builder import extract_position_flags, build_simple_state
-from agents.perform_action import perform_action
+from src.agents.perform_action import perform_action
 
 
 def game_step(region, templates: dict) -> tuple[np.ndarray, dict]:

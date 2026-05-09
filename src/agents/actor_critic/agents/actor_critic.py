@@ -5,8 +5,8 @@ import numpy as np
 import torch
 from torch.distributions import Categorical
 
-from agents.actor_critic.networks.actor import ActorNetwork
-from agents.actor_critic.networks.critic import CriticNetwork
+from src.agents.actor_critic.networks.actor import ActorNetwork
+from src.agents.actor_critic.networks.critic import CriticNetwork
 
 
 @dataclass

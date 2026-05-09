@@ -1,6 +1,6 @@
 import torch
 
-from agents.actor_critic.agents.actor_critic import BaseActorCriticAgent
+from src.agents.actor_critic.agents.actor_critic import BaseActorCriticAgent
 
 
 class OneStepActorCriticAgent(BaseActorCriticAgent):

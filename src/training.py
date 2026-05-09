@@ -188,7 +188,7 @@ def run_training(
             tracker.record_episode(ep,episode_info)
             print(
                 f"[TRAIN] episode={ep} "
-                f"reward={episode_info.get("total_reward"):.1f} "
+                f"reward={episode_info.get('total_reward'):.1f} "
                 f"avg_last_10={avg_last_10:.1f}"
                 f"{format_episode_metrics(mode, agent)}"
             )

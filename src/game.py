@@ -8,11 +8,15 @@ import numpy as np
 import pyautogui
 
 from src.constants import (
+    CHECKPOINT_DIR,
     DOSBOX_PATH,
     CONF_PATH,
+    GRAPH_DIR_NAME,
     IMAGE_TEMPLATE_DIR,
+    ONE_STEP_ACTOR_CRITIC_RUN_NAME,
     PLAYER_TEMPLATE_PATH,
     DONKEY_TEMPLATE_PATH,
+    RUNS_DIR,
 )
 
 from src.window import find_dosbox_window, activate_window, get_capture_region
@@ -26,14 +30,16 @@ from src.detection import (
 from state import build_state
 from utils.seed_init import set_seed
 from agents.perform_action import perform_action
-from agents.actor_critic.agents.episodic import EpisodicActorCriticAgent
+from agents.actor_critic.agents.one_step import OneStepActorCriticAgent
 from agents.dgn_agent import DQNAgent
+
 
 MIN_CONF = 0.35
 
 STEP_REWARD = 1.0
 LAP_REWARD = 100.0
 CRASH_REWARD = -100.0
+
 
 class AgentMode(str, Enum):
     ACTOR_CRITIC = "actor_critic"
@@ -45,20 +51,12 @@ TRAINING_MODE = AgentMode.ACTOR_CRITIC
 
 STATE_SIZE = 3
 
-# If normalized x < 0.5 => left lane, else right lane.
-# If your capture crop is asymmetric, tune this value using logs.
 LINE_SPLIT_X = 0.50
-
-# Extra tolerance: if car and donkey x are close enough, treat them as same line
-# even if LINE_SPLIT_X puts them on different sides near the boundary.
 LANE_THRESHOLD = 0.06
 
-# Y zone where jumping is useful.
-# These values are from your older danger_y logic.
 DANGER_Y_MIN = -0.65
 DANGER_Y_MAX = -0.18
 
-# Reward shaping.
 BAD_JUMP_PENALTY = -10.0
 BAD_SIDE_JUMP_PENALTY = -12.0
 MISSED_DANGER_PENALTY = -8.0
@@ -94,7 +92,6 @@ def _get_raw_counter(counters: dict, name: str):
         return None
 
     return int(value)
-
 
 
 def _x_to_line(x: float, visible: bool) -> float:
@@ -232,6 +229,8 @@ def _build_state_for_mode(mode: AgentMode, raw_state: np.ndarray) -> np.ndarray:
         return _build_simple_state(raw_state)
 
     return raw_state
+
+
 def validate_paths():
     required = {
         "DOSBox.exe": DOSBOX_PATH,
@@ -279,7 +278,7 @@ def game_step(region, templates: dict) -> tuple[np.ndarray, dict]:
 
 
 def _format_episode_metrics(mode: AgentMode, agent) -> str:
-    if mode == AgentMode.DQN:
+    if mode in (AgentMode.DQN, AgentMode.DOUBLE_DQN):
         epsilon = getattr(agent, "epsilon", None)
         if epsilon is None:
             return ""
@@ -289,20 +288,130 @@ def _format_episode_metrics(mode: AgentMode, agent) -> str:
     if m is None:
         return ""
 
-    # probs = agent.last_probs
-    # prob_str = ""
+    parts = []
 
-    # if probs is not None and len(probs) >= 2:
-    #     prob_str = f" | probs=[no_jump:{probs[0]:.3f},jump:{probs[1]:.3f}]"
+    if "actor_loss" in m:
+        parts.append(f"actor={m['actor_loss']:+.4f}")
 
-    return (
-        f" | loss={m['loss']:+.4f}"
-        f" | actor={m['actor_loss']:+.4f}"
-        f" | critic={m['critic_loss']:+.4f}"
-        f" | adv={m['mean_advantage']:+.4f}"
-        f" | V={m['mean_value']:+.4f}"
-        f" | H={m['entropy']:.4f}"
-        # f"{prob_str}"
+    if "critic_loss" in m:
+        parts.append(f"critic={m['critic_loss']:+.4f}")
+
+    if "td_error" in m:
+        parts.append(f"td={m['td_error']:+.4f}")
+
+    if "value" in m:
+        parts.append(f"V={m['value']:+.4f}")
+
+    if "target" in m:
+        parts.append(f"target={m['target']:+.4f}")
+
+    if "entropy_mean" in m:
+        parts.append(f"H={m['entropy_mean']:.4f}")
+
+    if "scaled_reward" in m:
+        parts.append(f"r_scaled={m['scaled_reward']:+.4f}")
+
+    if "prob_no_jump" in m and "prob_jump" in m:
+        parts.append(
+            f"probs=[no_jump:{m['prob_no_jump']:.3f},jump:{m['prob_jump']:.3f}]"
+        )
+
+    return " | " + " | ".join(parts) if parts else ""
+
+
+def _track_step(
+    tracker: OneStepActorCriticTracker | None,
+    mode: AgentMode,
+    agent,
+    episode_idx: int,
+    step: int,
+    reward: float,
+    total_reward: float,
+    action: int,
+    done: bool,
+    flags: dict,
+    good_jump: bool,
+    bad_jump: bool,
+    missed_jump: bool,
+    side_jump: bool,
+    crash_detected: bool,
+) -> None:
+    if tracker is None or mode != AgentMode.ACTOR_CRITIC:
+        return
+
+    metrics = getattr(agent, "last_metrics", None) or {}
+
+    step_data = {
+        "reward": float(reward),
+        "total_reward": float(total_reward),
+        "action": int(action),
+        "done": int(done),
+
+        "actor_loss": metrics.get("actor_loss"),
+        "critic_loss": metrics.get("critic_loss"),
+        "td_error": metrics.get("td_error"),
+        "advantage": metrics.get("advantage"),
+        "entropy_mean": metrics.get("entropy_mean"),
+        "value": metrics.get("value"),
+        "next_value": metrics.get("next_value"),
+        "target": metrics.get("target"),
+        "scaled_reward": metrics.get("scaled_reward"),
+        "prob_no_jump": metrics.get("prob_no_jump"),
+        "prob_jump": metrics.get("prob_jump"),
+        "selected_action_prob": metrics.get("selected_action_prob"),
+
+        "danger": int(flags["danger"]),
+        "same_line": int(flags["same_line"]),
+        "good_jump": int(good_jump),
+        "bad_jump": int(bad_jump),
+        "missed_jump": int(missed_jump),
+        "side_jump": int(side_jump),
+        "crash": int(crash_detected),
+    }
+
+    tracker.record_step(
+        episode=episode_idx,
+        step=step,
+        data=step_data,
+    )
+
+
+def _track_episode(
+    tracker: OneStepActorCriticTracker | None,
+    mode: AgentMode,
+    episode_idx: int,
+    total_reward: float,
+    step: int,
+    action_counts: dict[int, int],
+    good_jump_count: int,
+    bad_jump_count: int,
+    missed_jump_count: int,
+    side_jump_count: int,
+    crash_detected: bool,
+) -> None:
+    if tracker is None or mode != AgentMode.ACTOR_CRITIC:
+        return
+
+    episode_steps = max(1, step)
+
+    tracker.record_episode(
+        episode=episode_idx,
+        data={
+            "total_reward": float(total_reward),
+            "episode_steps": int(episode_steps),
+
+            "action_0_count": int(action_counts[0]),
+            "action_1_count": int(action_counts[1]),
+            "action_0_rate": float(action_counts[0] / episode_steps),
+            "action_1_rate": float(action_counts[1] / episode_steps),
+
+            "good_jumps": int(good_jump_count),
+            "bad_jumps": int(bad_jump_count),
+            "missed_jumps": int(missed_jump_count),
+            "side_jumps": int(side_jump_count),
+
+            "crash": int(crash_detected),
+        },
     )
 
 
@@ -311,6 +420,7 @@ def run_episode(
     templates: dict,
     agent,
     mode: AgentMode,
+    tracker: OneStepActorCriticTracker | None = None,
     episode_idx: int = 0,
     step_interval: float = 0.15,
 ) -> tuple[float, list[np.ndarray]]:
@@ -393,7 +503,6 @@ def run_episode(
             if prev_raw_donkey is None or donkey_raw >= prev_raw_donkey:
                 prev_raw_donkey = donkey_raw
 
-
         raw_lap = False
 
         if prev_raw_driver is not None and driver_raw is not None:
@@ -429,7 +538,6 @@ def run_episode(
         )
 
         current_player_visible = raw_state[7] > 0.5
-        current_donkey_visible = raw_state[8] > 0.5
 
         player_was_visible = current_player_visible
         player_now_gone = not next_player_visible
@@ -499,25 +607,18 @@ def run_episode(
 
         ts = time.strftime("%H:%M:%S")
 
-        # probs = agent.last_probs
-        # prob_str = (
-        #     f"probs=[no_jump:{probs[0]:.3f},jump:{probs[1]:.3f}]"
-        #     if probs is not None
-        #     else ""
-        # )
-
-        # print(
-        #     f"[{ts}] ep={episode_idx:4d} | "
-        #     f"step={step:4d} | "
-        #     f"action={executed_action} | "
-        #     f"donkey_stable={donkey_stable!s:>4} | "
-        #     f"driver_stable={driver_stable!s:>4} | "
-        #     f"reward={reward:+7.1f} "
-        #     f"total={total_reward:+8.1f} | "
-        #     # f"epsilon={agent.epsilon:.3f}"
-        # )
-
         if mode == AgentMode.ACTOR_CRITIC:
+            metrics = getattr(agent, "last_metrics", None) or {}
+
+            prob_str = (
+                "probs=["
+                f"no_jump:{metrics['prob_no_jump']:.3f},"
+                f"jump:{metrics['prob_jump']:.3f}"
+                "]"
+                if "prob_no_jump" in metrics and "prob_jump" in metrics
+                else ""
+            )
+
             print(
                 f"[{ts}] ep={episode_idx:4d} | "
                 f"step={step:4d} | "
@@ -536,7 +637,7 @@ def run_episode(
                 f"donkey={donkey_stable!s:>4} driver={driver_stable!s:>4} | "
                 f"crash={crash_detected} | "
                 f"r={reward:+7.1f} total={total_reward:+8.1f} | "
-                # f"{prob_str}"
+                f"{prob_str}"
             )
         else:
             print(
@@ -548,7 +649,6 @@ def run_episode(
                 f"r={reward:+7.1f} total={total_reward:+8.1f}"
             )
 
-
         if driver_stable is not None:
             prev_stable_driver = driver_stable
 
@@ -559,8 +659,23 @@ def run_episode(
         step += 1
 
         if done:
+            _track_episode(
+                tracker=tracker,
+                mode=mode,
+                episode_idx=episode_idx,
+                total_reward=total_reward,
+                step=step,
+                action_counts=action_counts,
+                good_jump_count=good_jump_count,
+                bad_jump_count=bad_jump_count,
+                missed_jump_count=missed_jump_count,
+                side_jump_count=side_jump_count,
+                crash_detected=crash_detected,
+            )
+
             avg_loss = float(np.mean(episode_losses)) if episode_losses else None
             loss_text = f" | avg_loss={avg_loss:.4f}" if avg_loss is not None else ""
+
             print(
                 f"\n{'=-' * 40}\n"
                 f"Episode {episode_idx} finished after {step} steps | "
@@ -580,11 +695,11 @@ def run_episode(
 def run_training(
     num_episodes: int = 20000,
     step_interval: float = 0.15,
-    mode: AgentMode = AgentMode.DQN,
+    mode: AgentMode = AgentMode.ACTOR_CRITIC,
 ):
     set_seed(122)
     validate_paths()
-    
+
     score_templates_dir = os.path.join(
         IMAGE_TEMPLATE_DIR,
         "score_templates",
@@ -600,9 +715,9 @@ def run_training(
 
     process = None
     agent = None
+    tracker = None
 
-    checkpoint_dir = "checkpoints"
-    os.makedirs(checkpoint_dir, exist_ok=True)
+    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
     try:
         print("Starting DOSBox...")
@@ -620,20 +735,44 @@ def run_training(
 
         region = get_capture_region(window)
 
-
         if mode == AgentMode.DQN:
             agent = DQNAgent(flag_double=False)
+
         elif mode == AgentMode.DOUBLE_DQN:
             agent = DQNAgent(flag_double=True)
+
         else:
-            agent = EpisodicActorCriticAgent(
+            agent = OneStepActorCriticAgent(
                 state_size=STATE_SIZE,
+                action_size=2,
                 hidden_layers=[64, 64],
                 gamma=0.97,
-                lr=0.0003,
-                entropy_coef=0.001,
-                normalize_returns=True,
+                actor_lr=0.0003,
+                critic_lr=0.0003,
+                entropy_coef=0.01,
+                reward_scale=100.0,
+                max_grad_norm=1.0,
             )
+
+            tracker = OneStepActorCriticTracker(
+                run_name=ONE_STEP_ACTOR_CRITIC_RUN_NAME,
+                root_dir=RUNS_DIR,
+                config={
+                    "algorithm": ONE_STEP_ACTOR_CRITIC_RUN_NAME,
+                    "state_size": STATE_SIZE,
+                    "action_size": 2,
+                    "gamma": 0.97,
+                    "actor_lr": 0.0003,
+                    "critic_lr": 0.0003,
+                    "entropy_coef": 0.02,
+                    "reward_scale": 100.0,
+                    "max_grad_norm": 1.0,
+                    "step_interval": step_interval,
+                },
+                save_steps=True,
+            )
+
+            print(f"Tracking run dir: {tracker.run_dir}")
 
         pyautogui.press("space")
         time.sleep(1)
@@ -646,6 +785,7 @@ def run_training(
                 templates=templates,
                 agent=agent,
                 mode=mode,
+                tracker=tracker,
                 episode_idx=ep,
                 step_interval=step_interval,
             )
@@ -654,17 +794,11 @@ def run_training(
                 agent.finish_episode()
 
             if hasattr(agent, "save") and (ep + 1) % 50 == 0:
-                agent.save(os.path.join(checkpoint_dir, f"agent1_ep_{ep + 1}.pt"))
+                agent.save(os.path.join(CHECKPOINT_DIR, f"agent1_ep_{ep + 1}.pt"))
+
             episode_rewards.append(total_reward)
 
             avg_last_10 = float(np.mean(episode_rewards[-10:]))
-
-            # print(
-            #     f"[TRAIN] episode={ep} "
-            #     f"reward={total_reward:.1f} "
-            #     f"avg_last_10={avg_last_10:.1f} "
-            #     f"epsilon={agent.epsilon:.3f}"
-            # )
 
             print(
                 f"[TRAIN] episode={ep} "
@@ -678,10 +812,24 @@ def run_training(
 
     finally:
         if agent is not None and hasattr(agent, "save"):
-            agent.save(os.path.join(checkpoint_dir, "agent1_last.pt"))
+            agent.save(os.path.join(CHECKPOINT_DIR, "agent1_last.pt"))
+
+        graph_run_dir = None
+
+        if tracker is not None:
+            graph_run_dir = tracker.run_dir
+            tracker.close()
 
         if process is not None:
             process.terminate()
+
+        if graph_run_dir is not None:
+            try:
+                graph_paths = plot_one_step_actor_critic_run(graph_run_dir)
+                graph_dir = os.path.join(graph_run_dir, GRAPH_DIR_NAME)
+                print(f"Saved {len(graph_paths)} graph(s) to {graph_dir}")
+            except Exception as exc:
+                print(f"Failed to create graphs: {exc}")
 
 
 if __name__ == "__main__":

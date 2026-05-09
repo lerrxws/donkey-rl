@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
@@ -41,3 +42,32 @@ SEGMENT_MIN_WIDTH  = 1
 SEGMENT_MERGE_GAP  = 2  
 
 TEMPLATE_MATCH_THRESHOLD = 0.8
+
+MIN_CONF = 0.35
+
+
+STEP_REWARD = 1.0
+LAP_REWARD = 100.0
+CRASH_REWARD = -100.0
+UNNECESSARY_JUMP_PENALTY= -10.0
+BAD_SIDE_JUMP_PENALTY = -12.0
+MISSED_DANGER_PENALTY = -8.0
+GOOD_DANGER_JUMP_REWARD = 3.0
+
+
+STATE_SIZE = 3
+HIDDEN_LAYERS_SIZE = [64,64]
+
+LINE_SPLIT_X = 0.50
+
+LANE_THRESHOLD = 0.06
+
+DANGER_Y_MIN = -0.65
+DANGER_Y_MAX = -0.18
+
+
+class AgentMode(str, Enum):
+    ACTOR_CRITIC = "actor_critic"
+    DQN = "dqn"
+    DOUBLE_DQN = "double_dqn"
+

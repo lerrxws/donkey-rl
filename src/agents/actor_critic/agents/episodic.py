@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from agents.actor_critic.agents.actor_critic import (
+from src.agents.actor_critic.agents.actor_critic import (
     BaseActorCriticAgent,
     Transition,
 )

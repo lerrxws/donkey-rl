@@ -1,6 +1,6 @@
 import cv2 as cv
 import numpy as np
-from constants import TEMPLATE_MATCH_THRESHOLD
+from config import TEMPLATE_MATCH_THRESHOLD
 
 
 def detect_object(

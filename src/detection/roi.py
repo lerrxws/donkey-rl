@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from constants import (
+from config import (
     DONKEY_ROI_WIDE,
     CAR_ROI_WIDE,
 )

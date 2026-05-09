@@ -1,6 +1,6 @@
 import cv2 as cv
 import numpy as np
-from constants import (
+from config import (
     SEGMENT_MIN_WIDTH,
     SEGMENT_MERGE_GAP,
 )

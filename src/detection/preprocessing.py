@@ -1,6 +1,6 @@
 import cv2 as cv
 import numpy as np
-from constants import (
+from config import (
     DIGIT_NORMALIZED_SIZE,
     DIGIT_PAD,
     SATURATION_THRESHOLD,

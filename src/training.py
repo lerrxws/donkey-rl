@@ -34,23 +34,12 @@ from src.utils.metrics.q_learning.q_learning import DQNTrainingTracker
 from src.utils.graphs.actor_critic.one_step_actor_critic import (
     OneStepActorCriticRunPlotter,
 )
+from src.utils.graphs.base import BaseRunPlotter
 from src.utils.graphs.q_learning.q_learning import DQNRunPlotter
 
 from src.agents.q_learning.perform_action import perform_action
 from src.agents.actor_critic.agents.one_step import OneStepActorCriticAgent
 from src.agents.q_learning.dgn_agent import DQNAgent
-
-def validate_paths():
-    required = {
-        "DOSBox.exe": DOSBOX_PATH,
-        "dosbox.conf": CONF_PATH,
-        "player_template.png": PLAYER_TEMPLATE_PATH,
-        "donkey_template.png": DONKEY_TEMPLATE_PATH,
-    }
-
-    for name, path in required.items():
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"{name} not found: {path}")
         
 
 def run_training(
@@ -60,7 +49,7 @@ def run_training(
 ):
     start_time=time.perf_counter()
     set_seed(125)
-    validate_paths()
+    _validate_paths()
     
     score_templates_dir = os.path.join(
         IMAGE_TEMPLATE_DIR,
@@ -226,10 +215,32 @@ def run_training(
         if process is not None:
             process.terminate()
 
-        if graph_run_dir is not None and graph_plotter is not None:
-            try:
-                graph_paths = graph_plotter.plot(graph_run_dir)
-                graph_dir = os.path.join(graph_run_dir, GRAPH_DIR_NAME)
-                print(f"Saved {len(graph_paths)} graph(s) to {graph_dir}")
-            except Exception as exc:
-                print(f"Failed to create graphs: {exc}")
+        _save_training_graphs(graph_run_dir, graph_plotter)
+
+
+def _validate_paths():
+    required = {
+        "DOSBox.exe": DOSBOX_PATH,
+        "dosbox.conf": CONF_PATH,
+        "player_template.png": PLAYER_TEMPLATE_PATH,
+        "donkey_template.png": DONKEY_TEMPLATE_PATH,
+    }
+
+    for name, path in required.items():
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{name} not found: {path}")
+
+
+def _save_training_graphs(
+    run_dir: str | None,
+    graph_plotter: BaseRunPlotter | None,
+) -> None:
+    if run_dir is None or graph_plotter is None:
+        return
+
+    try:
+        graph_paths = graph_plotter.plot(run_dir)
+        graph_dir = os.path.join(run_dir, GRAPH_DIR_NAME)
+        print(f"Saved {len(graph_paths)} graph(s) to {graph_dir}")
+    except Exception as exc:
+        print(f"Failed to create graphs: {exc}")

@@ -146,7 +146,6 @@ def run_training(
                 reward_scale=100.0,
                 max_grad_norm=1.0,
             )
-            graph_plotter = OneStepActorCriticRunPlotter(run_name)
 
             tracker = OneStepActorCriticTracker(
                 run_name=run_name,
@@ -166,6 +165,7 @@ def run_training(
                 },
                 save_steps=True,
             )
+            graph_plotter = OneStepActorCriticRunPlotter(run_name)
 
 
         pyautogui.press("space")

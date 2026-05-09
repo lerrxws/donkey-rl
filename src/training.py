@@ -21,7 +21,7 @@ from src.config import (
     RUNS_DIR
 )
 log_path = "training_logs.csv"
-from src.detection import load_score_templates
+from src.detection.score import load_score_templates
 from src.env.episode import run_episode
 from src.env.logging import format_episode_metrics
 from src.window import find_dosbox_window, activate_window, get_capture_region

@@ -122,6 +122,9 @@ class OneStepActorCriticAgent(BaseActorCriticAgent):
         if 0 <= transition.action < len(action_probs):
             selected_action_prob = float(action_probs[transition.action])
 
+        prob_no_jump = float(action_probs[0]) if len(action_probs) >= 1 else None
+        prob_jump = float(action_probs[1]) if len(action_probs) >= 2 else None
+
         metrics = OneStepActorCriticStepRecord(
             actor_loss=float(actor_loss.item()),
             critic_loss=float(critic_loss.item()),
@@ -132,19 +135,10 @@ class OneStepActorCriticAgent(BaseActorCriticAgent):
             next_value=float(next_value.detach().item()),
             target=float(target.detach().item()),
             scaled_reward=float(reward_tensor.item()),
+            prob_no_jump=prob_no_jump,
+            prob_jump=prob_jump,
+            selected_action_prob=selected_action_prob,
         )
-        metric_values = metrics.to_dict()
-
-        if len(action_probs) >= 1:
-            metric_values["prob_no_jump"] = float(action_probs[0])
-
-        if len(action_probs) >= 2:
-            metric_values["prob_jump"] = float(action_probs[1])
-
-        if selected_action_prob is not None:
-            metric_values["selected_action_prob"] = selected_action_prob
-
-        metrics = OneStepActorCriticStepRecord(**metric_values)
         self.last_metrics = metrics.to_dict()
 
         return metrics

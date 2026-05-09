@@ -16,8 +16,16 @@ class BaseRunPlotter(ABC):
     run_name: str = ""
 
     def __init__(self, run_name: str | None = None):
-        if run_name is not None:
-            self.run_name = run_name
+        self.run_name = run_name or ""
+
+    def resolve_run_dir(self, root_dir: str) -> str:
+        if not self.run_name:
+            raise ValueError("run_name must be set to resolve a run directory.")
+
+        return os.path.join(root_dir, self.run_name)
+
+    def plot_latest(self, root_dir: str) -> list[str]:
+        return self.plot(self.resolve_run_dir(root_dir))
 
     @abstractmethod
     def plot(self, run_dir: str) -> list[str]:

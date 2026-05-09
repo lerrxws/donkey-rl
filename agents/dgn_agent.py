@@ -16,14 +16,19 @@ class Action(Enum):
 
 
 class DQNAgent:
-    def __init__(self,flag_double=False):
+    def __init__(
+            self,
+            state_size:int,
+            hidden_layers: list[int] | None = None,
+            flag_double=False
+        ):
         self.flag_double=flag_double
         if flag_double:
             print("Init Double DQN agent...")
         else:   
             print("Init DQN agent...")
-        self.training_net = DQNModel()
-        self.target_net = DQNModel()
+        self.training_net = DQNModel(state_size=state_size,hidden_layers=hidden_layers)
+        self.target_net = DQNModel(state_size=state_size,hidden_layers=hidden_layers)
         self.target_net.load_state_dict(self.training_net.state_dict())
         self.target_net.eval()
 

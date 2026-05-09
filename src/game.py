@@ -28,14 +28,14 @@ from src.constants import (
     GOOD_DANGER_JUMP_REWARD
 )
 from src.window import find_dosbox_window, activate_window, get_capture_region
-from src.capture import capture_screen
+from utils.capture import capture_screen
 from src.detection import (
     detect_one,
     build_state,
     load_score_templates,
     read_score_counters,
 )
-from src.seed_init import set_seed
+from utils.seed_init import set_seed
 from agents.perform_action import perform_action
 from agents.actor_critic.agents.episodic import EpisodicActorCriticAgent
 from agents.dgn_agent import DQNAgent

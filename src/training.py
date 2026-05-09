@@ -22,7 +22,6 @@ from src.config import (
     RUNS_DIR,
     AgentMode,
 )
-log_path = "training_logs.csv"
 from src.detection.score import load_score_templates
 from src.env.episode import run_episode
 from src.env.logging import format_episode_metrics
@@ -31,23 +30,15 @@ from src.utils.seed_init import set_seed
 
 from src.utils.metrics.actor_critic.one_step_actor_critic import OneStepActorCriticTracker
 from src.utils.metrics.q_learning.q_learning import DQNTrainingTracker
-from src.utils.graphs import plot_one_step_actor_critic_run
+from src.utils.graphs.actor_critic.one_step_actor_critic import (
+    OneStepActorCriticRunPlotter,
+)
+from src.utils.graphs.base import BaseRunPlotter
+from src.utils.graphs.q_learning.q_learning import DQNRunPlotter
 
 from src.agents.q_learning.perform_action import perform_action
 from src.agents.actor_critic.agents.one_step import OneStepActorCriticAgent
 from src.agents.q_learning.dgn_agent import DQNAgent
-
-def validate_paths():
-    required = {
-        "DOSBox.exe": DOSBOX_PATH,
-        "dosbox.conf": CONF_PATH,
-        "player_template.png": PLAYER_TEMPLATE_PATH,
-        "donkey_template.png": DONKEY_TEMPLATE_PATH,
-    }
-
-    for name, path in required.items():
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"{name} not found: {path}")
         
 
 def run_training(
@@ -57,7 +48,7 @@ def run_training(
 ):
     start_time=time.perf_counter()
     set_seed(125)
-    validate_paths()
+    _validate_paths()
     
     score_templates_dir = os.path.join(
         IMAGE_TEMPLATE_DIR,
@@ -74,8 +65,10 @@ def run_training(
 
     process = None
     agent = None
+    tracker = None
+    graph_plotter = None
 
-    checkpoint_dir = "checkpoints"
+    checkpoint_dir = CHECKPOINT_DIR
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     try:
@@ -99,6 +92,7 @@ def run_training(
                     flag_double=False
                 )
                 run_name=Q_LEARNING_RUN_NAME
+                graph_plotter = DQNRunPlotter(run_name)
 
             else:
                 agent = DQNAgent(
@@ -108,6 +102,7 @@ def run_training(
                     flag_double=True
                 )
                 run_name=DOUBLE_Q_LEARNING_RUN_NAME
+                graph_plotter = DQNRunPlotter(run_name)
 
             tracker = DQNTrainingTracker(
                 run_name=run_name,
@@ -127,6 +122,7 @@ def run_training(
                 save_steps=True,
             )
         else:
+            run_name = ONE_STEP_ACTOR_CRITIC_RUN_NAME
             agent = OneStepActorCriticAgent(
                 state_size=STATE_SIZE,
                 action_size=ACTION_SIZE,
@@ -140,10 +136,10 @@ def run_training(
             )
 
             tracker = OneStepActorCriticTracker(
-                run_name=ONE_STEP_ACTOR_CRITIC_RUN_NAME,
+                run_name=run_name,
                 root_dir=RUNS_DIR,
                 config={
-                    "algorithm": ONE_STEP_ACTOR_CRITIC_RUN_NAME,
+                    "algorithm": run_name,
                     "state_size": STATE_SIZE,
                     "action_size": ACTION_SIZE,
                     "hidden_layer":HIDDEN_LAYERS_SIZE,
@@ -157,6 +153,7 @@ def run_training(
                 },
                 save_steps=True,
             )
+            graph_plotter = OneStepActorCriticRunPlotter(run_name)
 
 
         pyautogui.press("space")
@@ -205,8 +202,44 @@ def run_training(
             f"Training was running for {elapsed:.1f} seconds "
             f"({elapsed / 60:.2f} minutes)"
         )
-        tracker.close()
+        graph_run_dir = None
+
+        if tracker is not None:
+            graph_run_dir = tracker.run_dir
+            tracker.close()
+
         if agent is not None and hasattr(agent, "save"):
             agent.save(os.path.join(checkpoint_dir, "agent1_last.pt"))
+
         if process is not None:
             process.terminate()
+
+        _save_training_graphs(graph_run_dir, graph_plotter)
+
+
+def _validate_paths():
+    required = {
+        "DOSBox.exe": DOSBOX_PATH,
+        "dosbox.conf": CONF_PATH,
+        "player_template.png": PLAYER_TEMPLATE_PATH,
+        "donkey_template.png": DONKEY_TEMPLATE_PATH,
+    }
+
+    for name, path in required.items():
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{name} not found: {path}")
+
+
+def _save_training_graphs(
+    run_dir: str | None,
+    graph_plotter: BaseRunPlotter | None,
+) -> None:
+    if run_dir is None or graph_plotter is None:
+        return
+
+    try:
+        graph_paths = graph_plotter.plot(run_dir)
+        graph_dir = os.path.join(run_dir, GRAPH_DIR_NAME)
+        print(f"Saved {len(graph_paths)} graph(s) to {graph_dir}")
+    except Exception as exc:
+        print(f"Failed to create graphs: {exc}")

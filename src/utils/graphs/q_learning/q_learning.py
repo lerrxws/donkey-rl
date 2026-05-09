@@ -5,6 +5,7 @@ from pathlib import Path
 
 from src.config import RUNS_DIR
 from src.utils.graphs.base import (
+    BaseRunPlotter,
     ensure_graph_dir,
     has_columns,
     numeric_column,
@@ -228,30 +229,35 @@ def plot_same_line_rate(rows, x, graph_dir: str) -> str | None:
     )
 
 
+class DQNRunPlotter(BaseRunPlotter):
+    def plot(self, run_dir: str) -> list[str]:
+        rows, x, graph_dir = load_dqn_episodes(run_dir)
+
+        paths = []
+
+        for plotter in (
+            plot_total_reward,
+            plot_episode_steps,
+            plot_lap_count,
+            plot_crash_rate,
+            plot_epsilon,
+            plot_mean_loss,
+            plot_loss_range,
+            plot_reward_range,
+            plot_jump_rate,
+            plot_danger_rate,
+            plot_same_line_rate,
+        ):
+            path = plotter(rows, x, graph_dir)
+
+            if path is not None:
+                paths.append(path)
+
+        return paths
+
+
 def plot_dqn_run(run_dir: str) -> list[str]:
-    rows, x, graph_dir = load_dqn_episodes(run_dir)
-
-    paths = []
-
-    for plotter in (
-        plot_total_reward,
-        plot_episode_steps,
-        plot_lap_count,
-        plot_crash_rate,
-        plot_epsilon,
-        plot_mean_loss,
-        plot_loss_range,
-        plot_reward_range,
-        plot_jump_rate,
-        plot_danger_rate,
-        plot_same_line_rate,
-    ):
-        path = plotter(rows, x, graph_dir)
-
-        if path is not None:
-            paths.append(path)
-
-    return paths
+    return DQNRunPlotter().plot(run_dir)
 
 
 def plot_latest_dqn_like_run(

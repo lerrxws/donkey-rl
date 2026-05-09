@@ -13,7 +13,9 @@ from src.config import (
     IMAGE_TEMPLATE_DIR,
     AgentMode,
     STATE_SIZE,
-    HIDDEN_LAYERS_SIZE
+    HIDDEN_LAYERS_SIZE,
+    ONE_STEP_ACTOR_CRITIC_RUN_NAME,
+    RUNS_DIR
 )
 from src.detection import load_score_templates
 from src.env.episode import run_episode
@@ -21,8 +23,12 @@ from src.env.logging import format_episode_metrics
 from src.window import find_dosbox_window, activate_window, get_capture_region
 from src.utils.seed_init import set_seed
 
+from src.utils.metrics import OneStepActorCriticTracker
+from src.utils.graphs import plot_one_step_actor_critic_run
+
+from agents.perform_action import perform_action
+from agents.actor_critic.agents.one_step import OneStepActorCriticAgent
 from agents.dgn_agent import DQNAgent
-from agents.actor_critic.agents.episodic import EpisodicActorCriticAgent
 
 def validate_paths():
     required = {
@@ -90,14 +96,36 @@ def run_training(
                 flag_double=True
             )
         else:
-            agent = EpisodicActorCriticAgent(
+            agent = OneStepActorCriticAgent(
                 state_size=STATE_SIZE,
-                hidden_layers=HIDDEN_LAYERS_SIZE,
+                action_size=2,
+                hidden_layers=[64, 64],
                 gamma=0.97,
-                lr=0.0003,
-                entropy_coef=0.001,
-                normalize_returns=True,
+                actor_lr=0.0003,
+                critic_lr=0.0003,
+                entropy_coef=0.01,
+                reward_scale=100.0,
+                max_grad_norm=1.0,
             )
+
+            tracker = OneStepActorCriticTracker(
+                run_name=ONE_STEP_ACTOR_CRITIC_RUN_NAME,
+                root_dir=RUNS_DIR,
+                config={
+                    "algorithm": ONE_STEP_ACTOR_CRITIC_RUN_NAME,
+                    "state_size": STATE_SIZE,
+                    "action_size": 2,
+                    "gamma": 0.97,
+                    "actor_lr": 0.0003,
+                    "critic_lr": 0.0003,
+                    "entropy_coef": 0.02,
+                    "reward_scale": 100.0,
+                    "max_grad_norm": 1.0,
+                    "step_interval": step_interval,
+                },
+                save_steps=True,
+            )
+
 
         pyautogui.press("space")
         time.sleep(1)

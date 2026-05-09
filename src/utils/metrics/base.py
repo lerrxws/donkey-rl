@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from src.constants import RUNS_DIR
+from src.config import RUNS_DIR
 from src.utils.csv_logger import CSVLogger
 
 

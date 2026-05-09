@@ -4,7 +4,7 @@ import os
 import matplotlib
 import numpy as np
 
-from src.constants import GRAPH_DIR_NAME
+from src.config import GRAPH_DIR_NAME
 
 matplotlib.use("Agg")
 

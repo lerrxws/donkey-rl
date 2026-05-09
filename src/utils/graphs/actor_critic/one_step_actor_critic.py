@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from src.constants import ONE_STEP_ACTOR_CRITIC_RUN_NAME, RUNS_DIR
+from src.config import ONE_STEP_ACTOR_CRITIC_RUN_NAME, RUNS_DIR
 from src.utils.graphs.actor_critic.actor_critic import (
     load_actor_critic_episodes,
     plot_episode_steps,

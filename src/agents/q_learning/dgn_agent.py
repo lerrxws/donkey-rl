@@ -6,8 +6,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
 
-from src.agents.model import DQNModel
-from src.agents.replay_buffer import ReplayBuffer
+from src.agents.q_learning.model import DQNModel
+from src.agents.q_learning.replay_buffer import ReplayBuffer
 
 
 class Action(Enum):
@@ -19,6 +19,7 @@ class DQNAgent:
     def __init__(
             self,
             state_size:int,
+            action_size:int,
             hidden_layers: list[int] | None = None,
             flag_double=False
         ):
@@ -27,8 +28,8 @@ class DQNAgent:
             print("Init Double DQN agent...")
         else:   
             print("Init DQN agent...")
-        self.training_net = DQNModel(state_size=state_size,hidden_layers=hidden_layers)
-        self.target_net = DQNModel(state_size=state_size,hidden_layers=hidden_layers)
+        self.training_net = DQNModel(state_size=state_size,action_size=action_size,hidden_layers=hidden_layers)
+        self.target_net = DQNModel(state_size=state_size,action_size=action_size,hidden_layers=hidden_layers)
         self.target_net.load_state_dict(self.training_net.state_dict())
         self.target_net.eval()
 
@@ -55,6 +56,7 @@ class DQNAgent:
 
     def remember(self, state, action, reward, next_state, done):
         self.replay_buffer.push(state, action, reward, next_state, done)
+        return None
 
     def train_step(self):
         batch = self.replay_buffer.sample()

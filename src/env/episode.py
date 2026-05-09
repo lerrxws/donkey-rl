@@ -6,16 +6,15 @@ import numpy as np
 from src.config import (
     PLAYER_TEMPLATE_PATH,
     DONKEY_TEMPLATE_PATH,
-    CRASH_REWARD,
     AgentMode
 )
 from src.detection import detect_one,build_state,read_score_counters
 from src.utils.capture import capture_screen
 from src.utils.counter_tracker import get_raw_counter, update_stable_value
 from src.env.reward import compute_score_reward, compute_reward
-from src.env.state_builder import extract_position_flags, build_simple_state
-from src.agents.perform_action import perform_action
-
+from src.env.state_builder import build_simple_state, extract_position_flags
+from src.agents.q_learning.perform_action import perform_action
+from src.utils.metrics.base import BaseTrainingTracker
 
 def game_step(region, templates: dict) -> tuple[np.ndarray, dict]:
     frame = capture_screen(region)
@@ -52,9 +51,10 @@ def run_episode(
     templates: dict,
     agent,
     mode: AgentMode,
+    tracker: BaseTrainingTracker,
     episode_idx: int = 0,
-    step_interval: float = 0.15,
-) -> tuple[float, list[np.ndarray]]:
+    step_interval: float = 0.15
+) -> dict:
 
     driver_history = deque(maxlen=2)
     donkey_history = deque(maxlen=2)
@@ -71,7 +71,10 @@ def run_episode(
     states: list[np.ndarray] = []
 
     step = 0
-
+    lap_count = 0
+    epsilon = None
+    mean_loss = None
+    loss_per_episode = []
     print(f"[ep={episode_idx}] Waiting for player...")
     for attempt in range(50):
         raw_state, counters = game_step(region, templates)
@@ -116,13 +119,12 @@ def run_episode(
             prev_stable_driver = driver_stable
 
 
-        base_reward, done = compute_score_reward(
+        base_reward, done, score_event = compute_score_reward(
             prev_stable_driver,
             prev_stable_donkey,
             driver_stable,
             donkey_stable,
         )
-
 
         reward = compute_reward(
             base_reward=base_reward,
@@ -133,14 +135,39 @@ def run_episode(
 
         total_reward += reward
 
+        if score_event == "lap":
+            lap_count += 1
+
         next_state = build_simple_state(next_raw_state)
+        result=agent.remember(state,action,reward,next_state,done)
+        flags = extract_position_flags(raw_state)
 
-        agent.remember(state,action,reward,next_state,done)
+        probs=[None,None]
+        if mode==AgentMode.ACTOR_CRITIC and result:
+            probs.append(result.get("prob_no_jump"))
+            probs.append(result.get("prob_jump"))
 
-        if mode == AgentMode.DQN:
-            agent.train_step()
+        tracker.record_step(
+            episode=episode_idx,
+            step=step,
+            data={
+                "car_line": flags["car_line"],
+                "donkey_line": flags["donkey_line"],
+                "danger": int(flags["danger"]),
+                "same_line": int(flags["same_line"]),
+                "action": action,
+                "reward": reward,
+                "done": int(done),
+                "prob_no_jump": probs[0] if probs is not None else None,
+                "prob_jump": probs[1] if probs is not None else None,
+            },
+        )
 
+        if mode in (AgentMode.DQN, AgentMode.DOUBLE_DQN):
+            loss = agent.train_step()
 
+            if loss is not None:
+                loss_per_episode.append(float(loss))
         print(
             f"[{time.strftime("%H:%M:%S")}] ep={episode_idx:4d} | "
             f"step={step:4d} | "
@@ -165,6 +192,19 @@ def run_episode(
                 f"total reward = {total_reward:.1f}\n"
                 f"{'=-' * 40}\n"
             )
+            if mode in (AgentMode.DQN, AgentMode.DOUBLE_DQN):
+                if loss_per_episode:
+                    mean_loss=float(np.mean(loss_per_episode))
+                epsilon=agent.epsilon
+            episode_info={
+                "episode":episode_idx,
+                "total_reward":total_reward,
+                "episode_steps":step,
+                "lap_count":lap_count,
+                "crash":done,
+                "mean_loss":mean_loss,
+                "epsilon":epsilon
+            }
             break
 
-    return total_reward, states
+    return episode_info

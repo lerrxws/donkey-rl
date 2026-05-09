@@ -16,22 +16,22 @@ def compute_score_reward(
     prev_stable_donkey: int | None,
     curr_stable_driver: int | None,
     curr_stable_donkey: int | None,
-) -> tuple[float, bool]:
+) -> tuple[float, bool, str | None]:
     if any(v is None for v in (
         prev_stable_driver,
         prev_stable_donkey,
         curr_stable_driver,
         curr_stable_donkey,
     )):
-        return 0.0, False
+        return 0.0, False, None
 
     if curr_stable_donkey > prev_stable_donkey:
-        return CRASH_REWARD, True
+        return CRASH_REWARD, True, "crash"
 
     if curr_stable_driver > prev_stable_driver:
-        return LAP_REWARD + STEP_REWARD, False
+        return LAP_REWARD + STEP_REWARD, False, "lap"
 
-    return STEP_REWARD, False
+    return STEP_REWARD, False, None
 
 
 def compute_reward(

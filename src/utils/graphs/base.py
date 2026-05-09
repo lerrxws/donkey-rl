@@ -1,5 +1,6 @@
 import csv
 import os
+from abc import ABC, abstractmethod
 
 import matplotlib
 import numpy as np
@@ -9,6 +10,18 @@ from src.config import GRAPH_DIR_NAME
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+
+
+class BaseRunPlotter(ABC):
+    run_name: str = ""
+
+    def __init__(self, run_name: str | None = None):
+        if run_name is not None:
+            self.run_name = run_name
+
+    @abstractmethod
+    def plot(self, run_dir: str) -> list[str]:
+        raise NotImplementedError
 
 
 def read_csv_rows(path: str) -> list[dict[str, str]]:

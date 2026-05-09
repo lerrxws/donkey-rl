@@ -9,6 +9,7 @@ from src.utils.graphs.actor_critic.actor_critic import (
     plot_total_reward,
 )
 from src.utils.graphs.base import (
+    BaseRunPlotter,
     has_columns,
     numeric_column,
     save_line_plot,
@@ -99,41 +100,46 @@ def _plot_value_vs_target(
     )
 
 
+class OneStepActorCriticRunPlotter(BaseRunPlotter):
+    def plot(self, run_dir: str) -> list[str]:
+        rows, x, graph_dir = load_actor_critic_episodes(run_dir)
+        paths = []
+
+        for plotter in (
+            plot_total_reward,
+            plot_episode_steps,
+            lambda r, episodes, output_dir: _plot_range_metric(
+                rows=r,
+                x=episodes,
+                graph_dir=output_dir,
+                metric="actor_loss",
+                title="Actor loss",
+                ylabel="actor_loss",
+                output_name="actor_loss.png",
+            ),
+            lambda r, episodes, output_dir: _plot_range_metric(
+                rows=r,
+                x=episodes,
+                graph_dir=output_dir,
+                metric="critic_loss",
+                title="Critic loss",
+                ylabel="critic_loss",
+                output_name="critic_loss.png",
+            ),
+            _plot_td_error,
+            _plot_value_vs_target,
+            plot_entropy,
+        ):
+            path = plotter(rows, x, graph_dir)
+
+            if path is not None:
+                paths.append(path)
+
+        return paths
+
+
 def plot_one_step_actor_critic_run(run_dir: str) -> list[str]:
-    rows, x, graph_dir = load_actor_critic_episodes(run_dir)
-    paths = []
-
-    for plotter in (
-        plot_total_reward,
-        plot_episode_steps,
-        lambda r, episodes, output_dir: _plot_range_metric(
-            rows=r,
-            x=episodes,
-            graph_dir=output_dir,
-            metric="actor_loss",
-            title="Actor loss",
-            ylabel="actor_loss",
-            output_name="actor_loss.png",
-        ),
-        lambda r, episodes, output_dir: _plot_range_metric(
-            rows=r,
-            x=episodes,
-            graph_dir=output_dir,
-            metric="critic_loss",
-            title="Critic loss",
-            ylabel="critic_loss",
-            output_name="critic_loss.png",
-        ),
-        _plot_td_error,
-        _plot_value_vs_target,
-        plot_entropy,
-    ):
-        path = plotter(rows, x, graph_dir)
-
-        if path is not None:
-            paths.append(path)
-
-    return paths
+    return OneStepActorCriticRunPlotter().plot(run_dir)
 
 
 def plot_latest_one_step_actor_critic_run(

@@ -31,7 +31,10 @@ from src.utils.seed_init import set_seed
 
 from src.utils.metrics.actor_critic.one_step_actor_critic import OneStepActorCriticTracker
 from src.utils.metrics.q_learning.q_learning import DQNTrainingTracker
-from src.utils.graphs import plot_one_step_actor_critic_run
+from src.utils.graphs.actor_critic.one_step_actor_critic import (
+    OneStepActorCriticRunPlotter,
+)
+from src.utils.graphs.q_learning.q_learning import DQNRunPlotter
 
 from src.agents.q_learning.perform_action import perform_action
 from src.agents.actor_critic.agents.one_step import OneStepActorCriticAgent
@@ -74,8 +77,10 @@ def run_training(
 
     process = None
     agent = None
+    tracker = None
+    graph_plotter = None
 
-    checkpoint_dir = "checkpoints"
+    checkpoint_dir = CHECKPOINT_DIR
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     try:
@@ -99,6 +104,7 @@ def run_training(
                     flag_double=False
                 )
                 run_name=Q_LEARNING_RUN_NAME
+                graph_plotter = DQNRunPlotter(run_name)
 
             else:
                 agent = DQNAgent(
@@ -108,6 +114,7 @@ def run_training(
                     flag_double=True
                 )
                 run_name=DOUBLE_Q_LEARNING_RUN_NAME
+                graph_plotter = DQNRunPlotter(run_name)
 
             tracker = DQNTrainingTracker(
                 run_name=run_name,
@@ -127,6 +134,7 @@ def run_training(
                 save_steps=True,
             )
         else:
+            run_name = ONE_STEP_ACTOR_CRITIC_RUN_NAME
             agent = OneStepActorCriticAgent(
                 state_size=STATE_SIZE,
                 action_size=ACTION_SIZE,
@@ -138,12 +146,13 @@ def run_training(
                 reward_scale=100.0,
                 max_grad_norm=1.0,
             )
+            graph_plotter = OneStepActorCriticRunPlotter(run_name)
 
             tracker = OneStepActorCriticTracker(
-                run_name=ONE_STEP_ACTOR_CRITIC_RUN_NAME,
+                run_name=run_name,
                 root_dir=RUNS_DIR,
                 config={
-                    "algorithm": ONE_STEP_ACTOR_CRITIC_RUN_NAME,
+                    "algorithm": run_name,
                     "state_size": STATE_SIZE,
                     "action_size": ACTION_SIZE,
                     "hidden_layer":HIDDEN_LAYERS_SIZE,
@@ -205,8 +214,22 @@ def run_training(
             f"Training was running for {elapsed:.1f} seconds "
             f"({elapsed / 60:.2f} minutes)"
         )
-        tracker.close()
+        graph_run_dir = None
+
+        if tracker is not None:
+            graph_run_dir = tracker.run_dir
+            tracker.close()
+
         if agent is not None and hasattr(agent, "save"):
             agent.save(os.path.join(checkpoint_dir, "agent1_last.pt"))
+
         if process is not None:
             process.terminate()
+
+        if graph_run_dir is not None and graph_plotter is not None:
+            try:
+                graph_paths = graph_plotter.plot(graph_run_dir)
+                graph_dir = os.path.join(graph_run_dir, GRAPH_DIR_NAME)
+                print(f"Saved {len(graph_paths)} graph(s) to {graph_dir}")
+            except Exception as exc:
+                print(f"Failed to create graphs: {exc}")

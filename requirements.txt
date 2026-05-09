@@ -5,3 +5,4 @@ pyautogui == 0.9.54
 numpy == 2.0.2
 torch == 2.11.0
 matplotlib == 3.10.9
+pandas == 3.0.2

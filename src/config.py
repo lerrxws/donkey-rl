@@ -15,6 +15,8 @@ GRAPH_DIR_NAME = "graphs"
 
 ONE_STEP_ACTOR_CRITIC_RUN_NAME = "one_step_actor_critic"
 EPISODIC_ACTOR_CRITIC_RUN_NAME = "episodic_actor_critic"
+Q_LEARNING_RUN_NAME= "q_learning"
+DOUBLE_Q_LEARNING_RUN_NAME= "double_q_learning"
 
 CONF_PATH = os.path.join(PROJECT_ROOT, "dosbox.conf")
 DOSBOX_PATH = r"C:\Program Files (x86)\DOSBox-0.74-3\DOSBox.exe"
@@ -39,7 +41,8 @@ GOOD_DANGER_JUMP_REWARD = 3.0
 
 
 STATE_SIZE = 3
-HIDDEN_LAYERS_SIZE = [64,64]
+ACTION_SIZE = 2
+HIDDEN_LAYERS_SIZE= [64,64]
 
 LINE_SPLIT_X = 0.50
 

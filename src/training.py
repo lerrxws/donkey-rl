@@ -12,7 +12,8 @@ from src.config import (
     DONKEY_TEMPLATE_PATH,
     IMAGE_TEMPLATE_DIR,
     AgentMode,
-    STATE_SIZE
+    STATE_SIZE,
+    HIDDEN_LAYERS_SIZE
 )
 from src.detection import load_score_templates
 from src.env.episode import run_episode
@@ -41,6 +42,7 @@ def run_training(
     num_episodes: int = 20000,
     step_interval: float = 0.15
 ):
+    start_time=time.perf_counter()
     set_seed(122)
     validate_paths()
     
@@ -72,22 +74,25 @@ def run_training(
         window = find_dosbox_window(timeout=10)
         activate_window(window)
 
-        print(
-            f"Window: left={window.left} top={window.top} "
-            f"w={window.width} h={window.height}"
-        )
-
         region = get_capture_region(window)
 
 
         if mode == AgentMode.DQN:
-            agent = DQNAgent(flag_double=False)
+            agent = DQNAgent(
+                state_size=STATE_SIZE,
+                hidden_layers=HIDDEN_LAYERS_SIZE,
+                flag_double=False
+            )
         elif mode == AgentMode.DOUBLE_DQN:
-            agent = DQNAgent(flag_double=True)
+            agent = DQNAgent(
+                state_size=STATE_SIZE,
+                hidden_layers=HIDDEN_LAYERS_SIZE,
+                flag_double=True
+            )
         else:
             agent = EpisodicActorCriticAgent(
                 state_size=STATE_SIZE,
-                hidden_layers=[64, 64],
+                hidden_layers=HIDDEN_LAYERS_SIZE,
                 gamma=0.97,
                 lr=0.0003,
                 entropy_coef=0.001,
@@ -130,8 +135,13 @@ def run_training(
         print("Training stopped by user.")
 
     finally:
+        end_time=time.perf_counter()
+        elapsed=end_time-start_time
+        print(
+            f"Training was running for {elapsed:.1f} seconds "
+            f"({elapsed / 60:.2f} minutes)"
+        )
         if agent is not None and hasattr(agent, "save"):
             agent.save(os.path.join(checkpoint_dir, "agent1_last.pt"))
-
         if process is not None:
             process.terminate()

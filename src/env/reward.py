@@ -5,7 +5,7 @@ from src.config import(
     LAP_REWARD,
     STEP_REWARD,
     BAD_SIDE_JUMP_PENALTY,
-    BAD_JUMP_PENALTY,
+    UNNECESSARY_JUMP_PENALTY,
     MISSED_DANGER_PENALTY,
     GOOD_DANGER_JUMP_REWARD
 )
@@ -57,7 +57,7 @@ def compute_reward(
         reward += BAD_SIDE_JUMP_PENALTY
 
     elif jumped and not danger:
-        reward += BAD_JUMP_PENALTY
+        reward += UNNECESSARY_JUMP_PENALTY
 
     elif not jumped and danger:
         reward += MISSED_DANGER_PENALTY

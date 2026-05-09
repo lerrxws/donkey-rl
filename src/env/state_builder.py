@@ -11,10 +11,8 @@ from src.config import (
 def x_to_line(x: float, visible: bool) -> float:
     if not visible:
         return -1.0
-
     if x < LINE_SPLIT_X:
         return 0.0
-
     return 1.0
 
 

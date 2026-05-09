@@ -164,7 +164,7 @@ def run_episode(
         )
 
         print(
-            f"[{time.strftime("%H:%M:%S")}] ep={episode_idx:4d} | "
+            f"[{time.strftime('%H:%M:%S')}] ep={episode_idx:4d} | "
             f"step={step:4d} | "
             f"donkey={donkey_stable!s:>4} driver={driver_stable!s:>4} | "
             f"crash={crash_detected} | "

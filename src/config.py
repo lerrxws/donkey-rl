@@ -59,8 +59,8 @@ GOOD_DANGER_JUMP_REWARD = 3.0
 
 STATE_SIZE = 3
 ACTION_SIZE = 2
-HIDDEN_LAYERS_SIZE= [64,64]
-NUMBER_OF_SEED=125
+HIDDEN_LAYERS_SIZE= [64, 64]
+NUMBER_OF_SEED=64
 MAX_EPISODE_STEPS=500
 
 LINE_SPLIT_X = 0.50
@@ -73,6 +73,8 @@ DANGER_Y_MAX = -0.18
 
 class AgentMode(str, Enum):
     ACTOR_CRITIC = "actor_critic"
+    ONE_STEP_ACTOR_CRITIC = "one_step_actor_critic"
+    EPISODIC_ACTOR_CRITIC = "episodic_actor_critic"
     DQN = "dqn"
     DOUBLE_DQN = "double_dqn"
 

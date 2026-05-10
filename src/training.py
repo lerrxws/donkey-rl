@@ -17,6 +17,7 @@ from src.config import (
     GRAPH_DIR_NAME,
     HIDDEN_LAYERS_SIZE,
     ACTION_SIZE,
+    EPISODIC_ACTOR_CRITIC_RUN_NAME,
     ONE_STEP_ACTOR_CRITIC_RUN_NAME,
     Q_LEARNING_RUN_NAME,
     DOUBLE_Q_LEARNING_RUN_NAME,
@@ -31,8 +32,12 @@ from src.env.logging import format_episode_metrics
 from src.window import find_dosbox_window, activate_window, get_capture_region
 from src.utils.seed_init import set_seed
 
+from src.utils.metrics.actor_critic.episodic_actor_critic import EpisodicActorCriticTracker
 from src.utils.metrics.actor_critic.one_step_actor_critic import OneStepActorCriticTracker
 from src.utils.metrics.q_learning.q_learning import DQNTrainingTracker
+from src.utils.graphs.actor_critic.episodic_actor_critic import (
+    EpisodicActorCriticRunPlotter,
+)
 from src.utils.graphs.actor_critic.one_step_actor_critic import (
     OneStepActorCriticRunPlotter,
 )
@@ -40,15 +45,17 @@ from src.utils.graphs.base import BaseRunPlotter
 from src.utils.graphs.q_learning.q_learning import DQNRunPlotter
 
 from src.agents.q_learning.perform_action import perform_action
+from src.agents.actor_critic.agents.episodic import EpisodicActorCriticAgent
 from src.agents.actor_critic.agents.one_step import OneStepActorCriticAgent
 from src.agents.q_learning.dgn_agent import DQNAgent
         
 
 def run_training(
-    mode:AgentMode,
+    mode: AgentMode | str,
     num_episodes: int = 20000,
     step_interval: float = 0.15
 ):
+    mode = _normalize_mode(mode)
     start_time=time.perf_counter()
     set_seed(NUMBER_OF_SEED)
     _validate_paths()
@@ -125,21 +132,52 @@ def run_training(
                 },
                 save_steps=True,
             )
-        else:
-            run_name = ONE_STEP_ACTOR_CRITIC_RUN_NAME
-            agent = OneStepActorCriticAgent(
-                state_size=STATE_SIZE,
-                action_size=ACTION_SIZE,
-                hidden_layers=HIDDEN_LAYERS_SIZE,
-                gamma=0.97,
-                actor_lr=0.0003,
-                critic_lr=0.0003,
-                entropy_coef=0.01,
-                reward_scale=100.0,
-                max_grad_norm=1.0,
-            )
+        elif mode in (
+            AgentMode.ACTOR_CRITIC,
+            AgentMode.ONE_STEP_ACTOR_CRITIC,
+            AgentMode.EPISODIC_ACTOR_CRITIC,
+        ):
+            gamma = 0.97
+            actor_lr = 0.0003
+            critic_lr = 0.0003
+            entropy_coef = 0.01
+            reward_scale = 100.0
+            max_grad_norm = 1.0
 
-            tracker = OneStepActorCriticTracker(
+            run_name = ONE_STEP_ACTOR_CRITIC_RUN_NAME
+            tracker_cls = OneStepActorCriticTracker
+            graph_plotter = OneStepActorCriticRunPlotter(run_name)
+
+            if mode == AgentMode.EPISODIC_ACTOR_CRITIC:
+                run_name = EPISODIC_ACTOR_CRITIC_RUN_NAME
+                agent = EpisodicActorCriticAgent(
+                    state_size=STATE_SIZE,
+                    action_size=ACTION_SIZE,
+                    hidden_layers=HIDDEN_LAYERS_SIZE,
+                    gamma=gamma,
+                    actor_lr=actor_lr,
+                    critic_lr=critic_lr,
+                    entropy_coef=entropy_coef,
+                    reward_scale=reward_scale,
+                    max_grad_norm=max_grad_norm,
+                    normalize_returns=True,
+                )
+                tracker_cls = EpisodicActorCriticTracker
+                graph_plotter = EpisodicActorCriticRunPlotter()
+            else:
+                agent = OneStepActorCriticAgent(
+                    state_size=STATE_SIZE,
+                    action_size=ACTION_SIZE,
+                    hidden_layers=HIDDEN_LAYERS_SIZE,
+                    gamma=gamma,
+                    actor_lr=actor_lr,
+                    critic_lr=critic_lr,
+                    entropy_coef=entropy_coef,
+                    reward_scale=reward_scale,
+                    max_grad_norm=max_grad_norm,
+                )
+
+            tracker = tracker_cls(
                 run_name=run_name,
                 root_dir=RUNS_DIR,
                 config={
@@ -147,18 +185,20 @@ def run_training(
                     "state_size": STATE_SIZE,
                     "action_size": ACTION_SIZE,
                     "hidden_layer":HIDDEN_LAYERS_SIZE,
-                    "gamma": 0.97,
-                    "actor_lr": 0.0003,
-                    "critic_lr": 0.0003,
-                    "entropy_coef": 0.02,
-                    "reward_scale": 100.0,
-                    "max_grad_norm": 1.0,
+                    "gamma": gamma,
+                    "actor_lr": actor_lr,
+                    "critic_lr": critic_lr,
+                    "entropy_coef": entropy_coef,
+                    "reward_scale": reward_scale,
+                    "max_grad_norm": max_grad_norm,
+                    "normalize_returns": mode == AgentMode.EPISODIC_ACTOR_CRITIC,
                     "step_interval": step_interval,
                     "number_of_seed":NUMBER_OF_SEED
                 },
                 save_steps=True,
             )
-            graph_plotter = OneStepActorCriticRunPlotter(run_name)
+        else:
+            raise ValueError(f"Unsupported training mode: {mode}")
 
 
         pyautogui.press("space")
@@ -177,8 +217,18 @@ def run_training(
                 tracker=tracker
             )
 
-            if mode == AgentMode.ACTOR_CRITIC:
-                agent.finish_episode()
+            if mode in (
+                AgentMode.ACTOR_CRITIC,
+                AgentMode.ONE_STEP_ACTOR_CRITIC,
+                AgentMode.EPISODIC_ACTOR_CRITIC,
+            ):
+                episode_metrics = agent.finish_episode()
+
+                if hasattr(episode_metrics, "to_dict"):
+                    episode_metrics = episode_metrics.to_dict()
+
+                if isinstance(episode_metrics, dict):
+                    episode_info.update(episode_metrics)
             
             if hasattr(agent, "save") and (ep + 1) % 50 == 0:
                 agent.save(os.path.join(checkpoint_dir, f"agent1_ep_{ep + 1}.pt"))
@@ -237,6 +287,35 @@ def _validate_paths():
     for name, path in required.items():
         if not os.path.exists(path):
             raise FileNotFoundError(f"{name} not found: {path}")
+
+
+def _normalize_mode(mode: AgentMode | str) -> AgentMode:
+    if isinstance(mode, AgentMode):
+        if mode == AgentMode.ACTOR_CRITIC:
+            return AgentMode.ONE_STEP_ACTOR_CRITIC
+
+        return mode
+
+    mode_value = str(mode).strip().lower()
+    aliases = {
+        "actor-critic": AgentMode.ONE_STEP_ACTOR_CRITIC,
+        "actor_critic": AgentMode.ONE_STEP_ACTOR_CRITIC,
+        "one-step-actor-critic": AgentMode.ONE_STEP_ACTOR_CRITIC,
+        "one_step_actor_critic": AgentMode.ONE_STEP_ACTOR_CRITIC,
+        "episodic-actor-critic": AgentMode.EPISODIC_ACTOR_CRITIC,
+        "episodic_actor_critic": AgentMode.EPISODIC_ACTOR_CRITIC,
+        "dqn": AgentMode.DQN,
+        "double-dqn": AgentMode.DOUBLE_DQN,
+        "double_dqn": AgentMode.DOUBLE_DQN,
+    }
+
+    try:
+        return aliases[mode_value]
+    except KeyError as exc:
+        valid_modes = ", ".join(sorted(aliases))
+        raise ValueError(
+            f"Unsupported training mode '{mode}'. Valid modes: {valid_modes}"
+        ) from exc
 
 
 def _save_training_graphs(

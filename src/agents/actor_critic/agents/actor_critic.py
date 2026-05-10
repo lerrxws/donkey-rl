@@ -223,13 +223,22 @@ class BaseActorCriticAgent(ABC):
             entropies=entropies,
         )
 
+        entropy_mean = float(entropy_bonus.item())
+        mean_value = float(values.detach().mean().item())
+        mean_target = float(targets.detach().mean().item())
+        mean_advantage = float(advantages.mean().item())
+
         metrics = {
             "actor_loss": float(actor_loss.item()),
             "critic_loss": float(critic_loss.item()),
-            "entropy": float(entropy_bonus.item()),
-            "mean_value": float(values.detach().mean().item()),
-            "mean_target": float(targets.detach().mean().item()),
-            "mean_advantage": float(advantages.mean().item()),
+            "entropy": entropy_mean,
+            "entropy_mean": entropy_mean,
+            "mean_value": mean_value,
+            "mean_target": mean_target,
+            "mean_advantage": mean_advantage,
+            "value": mean_value,
+            "target": mean_target,
+            "advantage": mean_advantage,
             "batch_size": len(transitions),
         }
 

@@ -2,6 +2,20 @@ from src.utils.metrics.actor_critic.actor_critic import ActorCriticTracker
 
 
 class EpisodicActorCriticTracker(ActorCriticTracker):
+    EPISODE_FIELDS = ActorCriticTracker.EPISODE_FIELDS + [
+        "actor_loss",
+        "critic_loss",
+        "entropy_mean",
+        "value",
+        "target",
+        "advantage",
+        "mean_value",
+        "mean_target",
+        "mean_advantage",
+        "batch_size",
+        "total_raw_reward",
+    ]
+
     EPISODE_SUMMARIES = {
         "entropy_mean": ("mean", "std"),
         "value": ("mean", "min", "max"),

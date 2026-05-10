@@ -47,7 +47,7 @@ class EpisodicActorCriticAgent(BaseActorCriticAgent):
         reward: float,
         next_state,
         done: bool,
-    ) -> None:
+    ) -> dict:
         """
         Stores one transition until the episode ends.
         """
@@ -60,6 +60,20 @@ class EpisodicActorCriticAgent(BaseActorCriticAgent):
         )
 
         self.__episode_buffer.append(transition)
+
+        action_probs = transition.action_probs
+        selected_action_prob = None
+
+        if 0 <= transition.action < len(action_probs):
+            selected_action_prob = float(action_probs[transition.action])
+
+        return {
+            "entropy_mean": float(transition.entropy.detach().item()),
+            "value": float(transition.value.detach().item()),
+            "prob_no_jump": float(action_probs[0]) if len(action_probs) >= 1 else None,
+            "prob_jump": float(action_probs[1]) if len(action_probs) >= 2 else None,
+            "selected_action_prob": selected_action_prob,
+        }
 
     def finish_episode(self) -> dict | None:
         """

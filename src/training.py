@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import subprocess
@@ -206,6 +207,7 @@ def run_training(
 
         if tracker is not None:
             graph_run_dir = tracker.run_dir
+            tracker.save_training_time(elapsed / 60)
             tracker.close()
 
         if agent is not None and hasattr(agent, "save"):
@@ -243,3 +245,6 @@ def _save_training_graphs(
         print(f"Saved {len(graph_paths)} graph(s) to {graph_dir}")
     except Exception as exc:
         print(f"Failed to create graphs: {exc}")
+
+
+

@@ -48,6 +48,27 @@ def _plot_range_metric(
     )
 
 
+def _plot_mean_metric(
+    rows: list[dict[str, str]],
+    x,
+    graph_dir: str,
+    column: str,
+    title: str,
+    ylabel: str,
+    output_name: str,
+) -> str | None:
+    if not has_columns(rows, ["episode", column]):
+        return None
+
+    return save_line_plot(
+        x=x,
+        series={column: numeric_column(rows, column)},
+        title=title,
+        ylabel=ylabel,
+        path=os.path.join(graph_dir, output_name),
+    )
+
+
 def _plot_td_error(
     rows: list[dict[str, str]],
     x,
@@ -117,6 +138,15 @@ class OneStepActorCriticRunPlotter(BaseRunPlotter):
                 ylabel="actor_loss",
                 output_name="actor_loss.png",
             ),
+            lambda r, episodes, output_dir: _plot_mean_metric(
+                rows=r,
+                x=episodes,
+                graph_dir=output_dir,
+                column="actor_loss_mean",
+                title="Actor loss mean",
+                ylabel="actor_loss_mean",
+                output_name="actor_loss_mean.png",
+            ),
             lambda r, episodes, output_dir: _plot_range_metric(
                 rows=r,
                 x=episodes,
@@ -126,7 +156,25 @@ class OneStepActorCriticRunPlotter(BaseRunPlotter):
                 ylabel="critic_loss",
                 output_name="critic_loss.png",
             ),
+            lambda r, episodes, output_dir: _plot_mean_metric(
+                rows=r,
+                x=episodes,
+                graph_dir=output_dir,
+                column="critic_loss_mean",
+                title="Critic loss mean",
+                ylabel="critic_loss_mean",
+                output_name="critic_loss_mean.png",
+            ),
             _plot_td_error,
+            lambda r, episodes, output_dir: _plot_mean_metric(
+                rows=r,
+                x=episodes,
+                graph_dir=output_dir,
+                column="td_error_abs_mean",
+                title="TD error absolute mean",
+                ylabel="td_error_abs_mean",
+                output_name="td_error_abs_mean.png",
+            ),
             _plot_value_vs_target,
             plot_entropy,
         ):

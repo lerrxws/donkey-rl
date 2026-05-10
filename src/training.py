@@ -21,7 +21,9 @@ from src.config import (
     Q_LEARNING_RUN_NAME,
     DOUBLE_Q_LEARNING_RUN_NAME,
     RUNS_DIR,
-    AgentMode,
+    NUMBER_OF_SEED,
+    MAX_EPISODE_STEPS,
+    AgentMode
 )
 from src.detection.score import load_score_templates
 from src.env.episode import run_episode
@@ -45,11 +47,10 @@ from src.agents.q_learning.dgn_agent import DQNAgent
 def run_training(
     mode:AgentMode,
     num_episodes: int = 20000,
-    step_interval: float = 0.15,
-    max_episode_steps: int = 500
+    step_interval: float = 0.15
 ):
     start_time=time.perf_counter()
-    set_seed(125)
+    set_seed(NUMBER_OF_SEED)
     _validate_paths()
     
     score_templates_dir = os.path.join(
@@ -119,7 +120,8 @@ def run_training(
                     "epsilon_decay": 0.9995,
                     "gamma": 0.99,
                     "target_update_every": 500,
-                    "step_interval": step_interval
+                    "step_interval": step_interval,
+                    "number_of_seed":NUMBER_OF_SEED
                 },
                 save_steps=True,
             )
@@ -151,7 +153,8 @@ def run_training(
                     "entropy_coef": 0.02,
                     "reward_scale": 100.0,
                     "max_grad_norm": 1.0,
-                    "step_interval": step_interval
+                    "step_interval": step_interval,
+                    "number_of_seed":NUMBER_OF_SEED
                 },
                 save_steps=True,
             )
@@ -193,7 +196,7 @@ def run_training(
                 f"avg_last_10={avg_last_10:.1f}"
                 f"{format_episode_metrics(mode, agent)}"
             )
-            if episode_info["episode_steps"]>=max_episode_steps:
+            if episode_info["episode_steps"]>=MAX_EPISODE_STEPS:
                 print("!!! Training is finish !!!")
                 break
 

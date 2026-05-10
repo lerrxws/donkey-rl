@@ -139,13 +139,14 @@ def run_episode(
             lap_count += 1
 
         next_state = build_simple_state(next_raw_state)
-        result=agent.remember(state,action,reward,next_state,done)
+        agent_metrics = agent.remember(state,action,reward,next_state,done)
         flags = extract_position_flags(raw_state)
 
-        probs=[None,None]
-        if mode==AgentMode.ACTOR_CRITIC and result:
-            probs.append(result.get("prob_no_jump"))
-            probs.append(result.get("prob_jump"))
+        if mode in (AgentMode.DQN, AgentMode.DOUBLE_DQN):
+            agent_metrics = agent.train_step()
+
+            if agent_metrics is not None and agent_metrics.loss is not None:
+                loss_per_episode.append(float(agent_metrics.loss))
 
         tracker.record_step(
             episode=episode_idx,
@@ -158,18 +159,12 @@ def run_episode(
                 "action": action,
                 "reward": reward,
                 "done": int(done),
-                "prob_no_jump": probs[0] if probs is not None else None,
-                "prob_jump": probs[1] if probs is not None else None,
+                "agent_metrics": agent_metrics,
             },
         )
 
-        if mode in (AgentMode.DQN, AgentMode.DOUBLE_DQN):
-            loss = agent.train_step()
-
-            if loss is not None:
-                loss_per_episode.append(float(loss))
         print(
-            f"[{time.strftime("%H:%M:%S")}] ep={episode_idx:4d} | "
+            f"[{time.strftime('%H:%M:%S')}] ep={episode_idx:4d} | "
             f"step={step:4d} | "
             f"donkey={donkey_stable!s:>4} driver={driver_stable!s:>4} | "
             f"crash={crash_detected} | "

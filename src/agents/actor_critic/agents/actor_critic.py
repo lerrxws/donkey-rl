@@ -7,6 +7,7 @@ from torch.distributions import Categorical
 
 from src.agents.actor_critic.networks.actor import ActorNetwork
 from src.agents.actor_critic.networks.critic import CriticNetwork
+from src.utils.metrics.records import MetricRecord
 
 
 @dataclass
@@ -125,7 +126,7 @@ class BaseActorCriticAgent(ABC):
         reward: float,
         next_state,
         done: bool,
-    ) -> dict | None:
+    ) -> MetricRecord | None:
         pass
 
     # -------------------------------------------------------------------------

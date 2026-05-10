@@ -1,6 +1,7 @@
 import torch
 
 from src.agents.actor_critic.agents.actor_critic import BaseActorCriticAgent
+from src.utils.metrics.records import OneStepActorCriticStepRecord
 
 
 class OneStepActorCriticAgent(BaseActorCriticAgent):
@@ -39,7 +40,7 @@ class OneStepActorCriticAgent(BaseActorCriticAgent):
         reward: float,
         next_state,
         done: bool,
-    ) -> dict:
+    ) -> OneStepActorCriticStepRecord:
         """
         One-step Actor-Critic update.
 
@@ -121,34 +122,28 @@ class OneStepActorCriticAgent(BaseActorCriticAgent):
         if 0 <= transition.action < len(action_probs):
             selected_action_prob = float(action_probs[transition.action])
 
-        self.last_metrics = {
-            "actor_loss": float(actor_loss.item()),
-            "critic_loss": float(critic_loss.item()),
-            "entropy_mean": float(entropy_bonus.item()),
-            "td_error": float(td_error.item()),
-            "advantage": float(advantage.item()),
-            "value": float(value.detach().item()),
-            "next_value": float(next_value.detach().item()),
-            "target": float(target.detach().item()),
-            "reward": float(transition.reward),
-            "scaled_reward": float(reward_tensor.item()),
-            "done": transition.done,
-            "action": int(transition.action),
-            "batch_size": 1,
-        }
+        prob_no_jump = float(action_probs[0]) if len(action_probs) >= 1 else None
+        prob_jump = float(action_probs[1]) if len(action_probs) >= 2 else None
 
-        if len(action_probs) >= 1:
-            self.last_metrics["prob_no_jump"] = float(action_probs[0])
+        metrics = OneStepActorCriticStepRecord(
+            actor_loss=float(actor_loss.item()),
+            critic_loss=float(critic_loss.item()),
+            entropy_mean=float(entropy_bonus.item()),
+            td_error=float(td_error.item()),
+            advantage=float(advantage.item()),
+            value=float(value.detach().item()),
+            next_value=float(next_value.detach().item()),
+            target=float(target.detach().item()),
+            scaled_reward=float(reward_tensor.item()),
+            prob_no_jump=prob_no_jump,
+            prob_jump=prob_jump,
+            selected_action_prob=selected_action_prob,
+        )
+        self.last_metrics = metrics.to_dict()
 
-        if len(action_probs) >= 2:
-            self.last_metrics["prob_jump"] = float(action_probs[1])
+        return metrics
 
-        if selected_action_prob is not None:
-            self.last_metrics["selected_action_prob"] = selected_action_prob
-
-        return self.last_metrics.copy()
-
-    def finish_episode(self) -> dict | None:
+    def finish_episode(self) -> OneStepActorCriticStepRecord | None:
         """
         One-step updates on every transition,
         so there is nothing to train at the end of the episode.
@@ -157,7 +152,7 @@ class OneStepActorCriticAgent(BaseActorCriticAgent):
         if self.last_metrics is None:
             return None
 
-        return self.last_metrics.copy()
+        return OneStepActorCriticStepRecord(**self.last_metrics)
 
     # -------------------------------------------------------------------------
     # Private methods used only inside OneStepActorCriticAgent

@@ -45,7 +45,8 @@ from src.agents.q_learning.dgn_agent import DQNAgent
 def run_training(
     mode:AgentMode,
     num_episodes: int = 20000,
-    step_interval: float = 0.15
+    step_interval: float = 0.15,
+    max_episode_steps: int = 500
 ):
     start_time=time.perf_counter()
     set_seed(125)
@@ -192,6 +193,9 @@ def run_training(
                 f"avg_last_10={avg_last_10:.1f}"
                 f"{format_episode_metrics(mode, agent)}"
             )
+            if episode_info["episode_steps"]>=max_episode_steps:
+                print("!!! Training is finish !!!")
+                break
 
     except KeyboardInterrupt:
         print("Training stopped by user.")

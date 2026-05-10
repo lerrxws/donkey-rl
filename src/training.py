@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import subprocess
@@ -207,6 +208,7 @@ def run_training(
         if tracker is not None:
             graph_run_dir = tracker.run_dir
             tracker.close()
+            _save_training_time(tracker.config_path, elapsed / 60)
 
         if agent is not None and hasattr(agent, "save"):
             agent.save(os.path.join(checkpoint_dir, "agent1_last.pt"))
@@ -243,3 +245,16 @@ def _save_training_graphs(
         print(f"Saved {len(graph_paths)} graph(s) to {graph_dir}")
     except Exception as exc:
         print(f"Failed to create graphs: {exc}")
+
+
+def _save_training_time(config_path: str, elapsed: float) -> None:
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        config["time_learning_minutes"] = elapsed
+
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=4, default=str)
+    except Exception as exc:
+        print(f"Failed to update config.json with training time: {exc}")

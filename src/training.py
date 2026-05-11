@@ -48,7 +48,8 @@ def run_training(
     mode:AgentMode,
     step_interval: float = 0.15,
     number_of_seed:int=64,
-    hidden_layers_size:list = [64,64]
+    hidden_layers_size:list = [64,64],
+    max_episode_steps: int | None = MAX_EPISODE_STEPS,
 ):
     print(f"SEED: {number_of_seed}")
     print(f"HIDEN_LAYERS: {hidden_layers_size}")
@@ -200,8 +201,11 @@ def run_training(
                 f"avg_last_10={avg_last_10:.1f}"
                 f"{format_episode_metrics(mode, agent)}"
             )
-            if episode_info["episode_steps"]>=MAX_EPISODE_STEPS:
-                print("!!! Training is finish !!!")
+            if (
+                max_episode_steps is not None
+                and episode_info["episode_steps"] >= max_episode_steps
+            ):
+                print("!!! Training is finished !!!")
                 break
 
     except KeyboardInterrupt:

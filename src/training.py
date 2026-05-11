@@ -15,13 +15,13 @@ from src.config import (
     CHECKPOINT_DIR,
     STATE_SIZE,
     GRAPH_DIR_NAME,
-    HIDDEN_LAYERS_SIZE,
-    ACTION_SIZE,
     ONE_STEP_ACTOR_CRITIC_RUN_NAME,
     Q_LEARNING_RUN_NAME,
     DOUBLE_Q_LEARNING_RUN_NAME,
     RUNS_DIR,
-    NUMBER_OF_SEED,
+    # NUMBER_OF_SEED,
+    # HIDDEN_LAYERS_SIZE,
+    ACTION_SIZE,
     MAX_EPISODE_STEPS,
     AgentMode
 )
@@ -47,10 +47,14 @@ from src.agents.q_learning.dgn_agent import DQNAgent
 def run_training(
     mode:AgentMode,
     num_episodes: int = 20000,
-    step_interval: float = 0.15
+    step_interval: float = 0.15,
+    number_of_seed:int=64,
+    hidden_layers_size:list = [64,64]
 ):
+    print(f"SEED: {number_of_seed}")
+    print(f"HIDEN_LAYERS: {hidden_layers_size}")
     start_time=time.perf_counter()
-    set_seed(NUMBER_OF_SEED)
+    set_seed(number_of_seed)
     _validate_paths()
     
     score_templates_dir = os.path.join(
@@ -91,7 +95,7 @@ def run_training(
                 agent = DQNAgent(
                     state_size=STATE_SIZE,
                     action_size=ACTION_SIZE,
-                    hidden_layers=HIDDEN_LAYERS_SIZE,
+                    hidden_layers=hidden_layers_size,
                     flag_double=False
                 )
                 run_name=Q_LEARNING_RUN_NAME
@@ -101,7 +105,7 @@ def run_training(
                 agent = DQNAgent(
                     state_size=STATE_SIZE,
                     action_size=ACTION_SIZE,
-                    hidden_layers=HIDDEN_LAYERS_SIZE,
+                    hidden_layers=hidden_layers_size,
                     flag_double=True
                 )
                 run_name=DOUBLE_Q_LEARNING_RUN_NAME
@@ -114,14 +118,14 @@ def run_training(
                     "algorithm": run_name,
                     "state_size": STATE_SIZE,
                     "action_size": ACTION_SIZE,
-                    "hidden_layer": HIDDEN_LAYERS_SIZE,
+                    "hidden_layer": hidden_layers_size,
                     "epsilon": 1.0,
                     "epsilon_min": 0.05,
                     "epsilon_decay": 0.9995,
                     "gamma": 0.99,
                     "target_update_every": 500,
                     "step_interval": step_interval,
-                    "number_of_seed":NUMBER_OF_SEED
+                    "number_of_seed":number_of_seed
                 },
                 save_steps=True,
             )
@@ -130,7 +134,7 @@ def run_training(
             agent = OneStepActorCriticAgent(
                 state_size=STATE_SIZE,
                 action_size=ACTION_SIZE,
-                hidden_layers=HIDDEN_LAYERS_SIZE,
+                hidden_layers=hidden_layers_size,
                 gamma=0.97,
                 actor_lr=0.0003,
                 critic_lr=0.0003,
@@ -146,7 +150,7 @@ def run_training(
                     "algorithm": run_name,
                     "state_size": STATE_SIZE,
                     "action_size": ACTION_SIZE,
-                    "hidden_layer":HIDDEN_LAYERS_SIZE,
+                    "hidden_layer":hidden_layers_size,
                     "gamma": 0.97,
                     "actor_lr": 0.0003,
                     "critic_lr": 0.0003,
@@ -154,7 +158,7 @@ def run_training(
                     "reward_scale": 100.0,
                     "max_grad_norm": 1.0,
                     "step_interval": step_interval,
-                    "number_of_seed":NUMBER_OF_SEED
+                    "number_of_seed":number_of_seed
                 },
                 save_steps=True,
             )

@@ -8,7 +8,6 @@ if __name__ == "__main__":
         for seed in seeds:
             run_training(
                 mode=mode,
-                num_episodes=20000, 
                 step_interval=0.2,
                 number_of_seed=seed,
                 hidden_layers_size=[64,64]
@@ -18,7 +17,6 @@ if __name__ == "__main__":
         for hidden_layer_size in hidden_layer_sizes:
             run_training(
                 mode=mode,
-                num_episodes=20000, 
                 step_interval=0.2,
                 number_of_seed=164,
                 hidden_layers_size=hidden_layer_size

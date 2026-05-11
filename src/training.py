@@ -46,7 +46,6 @@ from src.agents.q_learning.dgn_agent import DQNAgent
 
 def run_training(
     mode:AgentMode,
-    num_episodes: int = 20000,
     step_interval: float = 0.15,
     number_of_seed:int=64,
     hidden_layers_size:list = [64,64]
@@ -170,7 +169,8 @@ def run_training(
 
         episode_rewards: list[float] = []
         episode_logs = []
-        for ep in range(num_episodes):
+        ep = 0
+        while True:
             episode_info = run_episode(
                 region=region,
                 templates=templates,

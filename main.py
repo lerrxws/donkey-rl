@@ -1,5 +1,6 @@
+from src.config import MAX_EPISODE_STEPS
 from src.training import run_training
- 
+
 if __name__ == "__main__":
     seeds=[64,164,264,421]
     hidden_layer_sizes=[[64],[64,64,64]]
@@ -11,7 +12,8 @@ if __name__ == "__main__":
                 num_episodes=20000, 
                 step_interval=0.2,
                 number_of_seed=seed,
-                hidden_layers_size=[64,64]
+                hidden_layers_size=[64,64],
+                max_episode_steps=MAX_EPISODE_STEPS,
             )
     
     for mode in modes:
@@ -21,5 +23,6 @@ if __name__ == "__main__":
                 num_episodes=20000, 
                 step_interval=0.2,
                 number_of_seed=164,
-                hidden_layers_size=hidden_layer_size
+                hidden_layers_size=hidden_layer_size,
+                max_episode_steps=MAX_EPISODE_STEPS,
             )

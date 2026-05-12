@@ -1,0 +1,17 @@
+{
+    "algorithm": "one_step_actor_critic",
+    "state_size": 3,
+    "action_size": 2,
+    "hidden_layer": [
+        64
+    ],
+    "gamma": 0.97,
+    "actor_lr": 0.0003,
+    "critic_lr": 0.0003,
+    "entropy_coef": 0.02,
+    "reward_scale": 100.0,
+    "max_grad_norm": 1.0,
+    "step_interval": 0.2,
+    "number_of_seed": 164,
+    "time_learning_minutes": "38.19"
+}
